@@ -19,8 +19,9 @@ jobs:
 
       - name: Check for deleted models and fail if any are found
         run: |
+          deleted_cound = $(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^D' | wc -l)
           deleted_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^D')
-          if [ -n "$deleted_models" ]; then
+          if [ "$deleted_cound" -gt 0 ]; then
             echo "Error: The following models were deleted:"
             echo "$deleted_models" | while read -r line; do
               file=$(echo "$line" | cut -f2 )
@@ -32,8 +33,9 @@ jobs:
 
       - name: Check for renamed models and fail if any are found
         run: |
+          renamed_count=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^R' | wc -l)
           renamed_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^R')
-          if [ -n "$renamed_models"]; then
+          if [ "$renamed_count" -gt 0 ]; then
             echo "Error: The following models were renamed:"
             echo "$renamed_models" | while read -r line; do
               old_file=$(echo $line | cut -f2 )

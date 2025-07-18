@@ -22,7 +22,7 @@ jobs:
           deleted_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^D' | wc -l)
           if [ -n "$deleted_models" ]; then
             echo "Error: The following models were deleted:"
-            echo "$deleted_models | while read -r line; do
+            echo "$deleted_models" | while read -r line; do
               file=$(echo "$line" | cut -f2 )
               model_name=$(basename "$file" .cs)
               echo "- $model_name"

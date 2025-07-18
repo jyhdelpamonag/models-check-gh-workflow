@@ -46,7 +46,10 @@ jobs:
             done
           fi
           if [ ${#modified_list[@]} -gt 0 ]; then
-            echo "Error: The following models have modified or deleted properties: ${modified_list[*]}"
+            echo "Error: The following models have modified or deleted properties:"
+            for model in "${modified_list[@]}"; do
+              echo "- $model"
+            done
             exit 1
           fi
               

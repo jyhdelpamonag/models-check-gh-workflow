@@ -20,16 +20,28 @@ jobs:
       - name: Check for deleted models and fail if any are found
         run: |
           deleted_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^D' | wc -l)
-          if [ "$deleted_models" -gt 0 ]; then
-            echo "Error: Deleted models found."
+          if [ -n "$deleted_models" ]; then
+            echo "Error: The following models were deleted:"
+            echo "$deleted_models | while read -r line; do
+              file=$(echo $line | cut -f2 )
+              model_name=$(basename "$file" .cs)
+              echo "- $model_name"
+            done
             exit 1
           fi
 
       - name: Check for renamed models and fail if any are found
         run: |
           renamed_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^R' | wc -l)
-          if [ "$renamed_models" -gt 0 ]; then
-            echo "Error: Renamed models found."
+          if [ -n "$renamed_models"]; then
+            echo "Error: The following models were renamed:"
+            echo "$renamed_models" | while read -r line; do
+              old_file=$(echo $line | cut -f2 )
+              new_file=$(echo $line | cut -f3 )
+              old_name=$(basename "$old_file" .cs)
+              new_name=$(basename "$new_file" .cs)
+              echo "- $old_name -> $new_name"
+            done
             exit 1
           fi
 

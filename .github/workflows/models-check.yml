@@ -33,12 +33,17 @@ jobs:
             exit 1
           fi
 
-      - name: Check for modified models and fail if property was removed or changed
+      - name: Check for modified models and fail if existing properties are removed
         run: |
           modified_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^M' | wc -l)
           if [ "$modified_models" -gt 0 ]; then
-            echo "Error: Modified models found. Please ensure no lines were removed or changed in added/renamed files."
-            exit 1
+            echo "Checking for removed properties in modified models..."
+            for file in $(git diff --name-only origin/${{ github.base_ref }} -- models); do
+              if git diff origin/${{ github.base_ref }} -- "$file" | grep -q '^-[^+]' ; then
+                echo "Error: Removed properties found in $file."
+                exit 1
+              fi
+            done
           fi
               
       - name: Passed 

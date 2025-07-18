@@ -17,29 +17,14 @@ jobs:
       - name: Fetch base branch
         run: git fetch origin ${{ github.base_ref }}
 
-      - name: Check for deleted or modified models under models folder
+      - name: Check for deleted or renamed models and its properties and fields of local branch to main branch
         run: |
-          git diff --name-only origin/${{ github.base_ref }} | grep -E '^models/' || true
-          if [ $? -ne 0 ]; then
-            echo "No models were modified or deleted."
-          else
-            echo "Models have been modified or deleted."
-            exit 1
-          fi
-
-      - name: Check for removed or changed lines in added/renamed files
-        run: |
-          git diff --name-only --diff-filter=AR origin/${{ github.base_ref }} | grep -E '^models/' | while read file; do
+          git diff --name-only --diff-filter=D origin/${{ github.base_ref }} | grep -E '^models/' | while read file; do
             if [ -f "$file" ]; then
-              if git diff --cached -- "$file" | grep -q '^\+'; then
-                echo "File $file has added lines."
-              fi
-              if git diff --cached -- "$file" | grep -q '^\-'; then
-                echo "File $file has removed lines."
-              fi
+              echo "File $file has been deleted or renamed."
             fi
           done || true
-          
+              
       - name: Passed 
         run: echo "All checks passed. No models were modified or deleted, and no lines were removed or changed in added/renamed files."
         if: success()

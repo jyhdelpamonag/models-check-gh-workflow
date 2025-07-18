@@ -33,14 +33,14 @@ jobs:
             exit 1
           fi
 
-      - name: Check for modified models and fail if lines removed and ignore comments and whitespace-only lines
+      - name: Check for deleted or modified properties in the models
         run: |
           modified_models=$(git diff --name-only origin/${{ github.base_ref }} -- models | grep -E '\.cs$')
           if [ -n "$modified_models" ]; then
             for model in $modified_models; do
               lines_removed_or_modified=$(git diff origin/${{ github.base_ref }} -- "$model" | grep '^-' | grep -v '^---' | grep -v '^-\s*//'| grep -v '^\s*$' | wc -l)
               if [ "$lines_removed_or_modified" -gt 0 ]; then
-                echo "Error: Lines removed in modified model $model."
+                echo "Error: Model $model was modified. Please review the changes."
                 exit 1
               fi
             done

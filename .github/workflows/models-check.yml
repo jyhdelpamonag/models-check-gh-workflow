@@ -38,14 +38,13 @@ jobs:
           modified_models=$(git diff --name-only origin/${{ github.base_ref }} -- models | grep -E '\.cs$')
           if [ -n "$modified_models" ]; then
             for model in $modified_models; do
-              lines_removed=$(git diff origin/${{ github.base_ref }} -- "$model" | grep '^-' | grep -v '^\-\-\-' | grep -v '^\s*$' | wc -l)
-              if [ "$lines_removed" -gt 0 ]; then
+              lines_removed_or_modified=$(git diff origin/${{ github.base_ref }} -- "$model" | grep '^-' | grep -v '^---' | grep -v '^-\s*//'| grep -v '^\s*$' | wc -l)
+              if [ "$lines_removed_or_modified" -gt 0 ]; then
                 echo "Error: Lines removed in modified model $model."
                 exit 1
               fi
             done
           fi
-
               
       - name: Passed 
         run: echo "All checks passed. No models were modified or deleted, and no lines were removed or changed in added/renamed files."

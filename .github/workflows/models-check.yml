@@ -17,13 +17,29 @@ jobs:
       - name: Fetch base branch
         run: git fetch origin ${{ github.base_ref }}
 
-      - name: Check for deleted or renamed models and its properties and fields of local branch to main branch
+      - name: Check for deleted models and fail if any are found
         run: |
-          git diff --name-only --diff-filter=D origin/${{ github.base_ref }} | grep -E '^models/' | while read file; do
-            if [ -f "$file" ]; then
-              echo "File $file has been deleted or renamed."
-            fi
-          done || true
+          deleted_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^D' | wc -l)
+          if [ "$deleted_models" -gt 0 ]; then
+            echo "Error: Deleted models found."
+            exit 1
+          fi
+
+      - name: Check for renamed models and fail if any are found
+        run: |
+          renamed_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^R' | wc -l)
+          if [ "$renamed_models" -gt 0 ]; then
+            echo "Error: Renamed models found."
+            exit 1
+          fi
+
+      - name: Check for modified models and fail if property was removed or changed
+        run: |
+          modified_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^M' | wc -l)
+          if [ "$modified_models" -gt 0 ]; then
+            echo "Error: Modified models found. Please ensure no lines were removed or changed in added/renamed files."
+            exit 1
+          fi
               
       - name: Passed 
         run: echo "All checks passed. No models were modified or deleted, and no lines were removed or changed in added/renamed files."

@@ -1,8 +1,9 @@
 name: Check Models
 
-on: pull_request
-  paths:
-    - 'models/**'
+on: 
+  pull_request:
+    paths:
+      - 'models/**'
 
 jobs:
   check-models:

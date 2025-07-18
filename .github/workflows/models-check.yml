@@ -23,7 +23,7 @@ jobs:
           if [ -n "$deleted_models" ]; then
             echo "Error: The following models were deleted:"
             echo "$deleted_models | while read -r line; do
-              file=$(echo $line | cut -f2 )
+              file=$(echo "$line" | cut -f2 )
               model_name=$(basename "$file" .cs)
               echo "- $model_name"
             done

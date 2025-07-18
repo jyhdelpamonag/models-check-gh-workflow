@@ -19,9 +19,9 @@ jobs:
 
       - name: Check for deleted models and fail if any are found
         run: |
-          deleted_cound = $(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^D' | wc -l)
+          deleted_count=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^D' | wc -l)
           deleted_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^D')
-          if [ "$deleted_cound" -gt 0 ]; then
+          if [ "$deleted_count" -gt 0 ]; then
             echo "Error: The following models were deleted:"
             echo "$deleted_models" | while read -r line; do
               file=$(echo "$line" | cut -f2 )

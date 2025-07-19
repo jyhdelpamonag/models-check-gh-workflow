@@ -22,12 +22,12 @@ jobs:
         run: |
           echo "Checking for deleted models..."
           deleted_models=$(git diff --name-status origin/main -- models | grep '^D' || true)
-          echo "Deleted models:"
-          echo "$deleted_models"
-
+    
           if [ -z "$deleted_models" ]; then
             deleted_count=0
           else
+            echo "Deleted models:"
+            echo "$deleted_models"
             deleted_count=$(echo "$deleted_models" | wc -l)
           fi
 
@@ -36,7 +36,7 @@ jobs:
           if [ "$deleted_count" -gt 0 ]; then
             echo "BREAKING CHANGE: Please review the changes. The following models were deleted or renamed:"
             echo "$deleted_models" | while read -r status file; do
-              echo "- $file"
+              echo "- $(basename "$file" .cs)"
             done
             exit 1
           else

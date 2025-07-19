@@ -38,7 +38,7 @@ jobs:
 
       - name: Check for deleted or modified properties in the models
         run: |
-          modified_models=$(git diff --name-only origin/main -- models | grep -E '\.cs$')
+          modified_models=$(git diff --name-only origin/main -- models | grep -E '\.cs$' || true)
           if [ -n "$modified_models" ]; then
             for model in $modified_models; do
               lines_removed_or_modified=$(git diff origin/main -- "$model" | grep '^-' | grep -v '^---' | grep -v '^-\s*//'| grep -v '^\s*$' | wc -l)

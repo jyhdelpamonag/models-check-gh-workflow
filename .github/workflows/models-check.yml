@@ -101,6 +101,14 @@ jobs:
           # Set output with new syntax (recommended)
           echo "breaking_changes_found=$breaking_changes_found" >> $GITHUB_OUTPUT
 
+  no-breaking-changes-found:
+    needs: [detect-breaking-changes]
+    runs-on: ubuntu-latest
+    if: needs.detect-breaking-changes.outputs.breaking_changes_found == 'false'
+    steps:
+      - name: No breaking changes found
+        run: echo "No breaking changes found or approval granted, workflow continues."
+
   breaking-changes-found-bypass-approval:
     needs: detect-breaking-changes
     runs-on: ubuntu-latest
@@ -110,3 +118,11 @@ jobs:
     steps:
       - name: Breaking changes found in the models. Please review the changes before continuing.
         run: echo "Manual approval received, continuing workflow."
+
+  breaking-changes-found-approved:
+    needs: breaking-changes-found-bypass-approval
+    runs-on: ubuntu-latest
+    if: needs.breaking-changes-found-bypass-approval.result == 'success'
+    steps:
+      - name: Breaking changes found and approved
+        run: echo "Breaking changes found and approved, workflow continues."

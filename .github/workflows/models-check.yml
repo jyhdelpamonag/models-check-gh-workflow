@@ -60,8 +60,10 @@ jobs:
 
           if [ "$renamed_count" -gt 0 ]; then
             echo "BREAKING CHANGE: Please review the changes. The following models were renamed:"
-            echo "$renamed_models" | while read -r status file; do
-              echo "- $(basename "$file" .cs)"
+            echo "$renamed_models" | while read -r status oldfile newfile; do
+              oldname=$(basename "$oldfile" .cs)
+              newname=$(basename "$newfile" .cs)
+              echo "- $oldname  →  $newname"
             done
             exit 1
           else

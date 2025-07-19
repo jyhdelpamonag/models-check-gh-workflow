@@ -20,19 +20,22 @@ jobs:
 
       - name: Check for deleted models and fail if any are found
         run: |
-          echo "Checking for deleted models...
-          deleted_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^D')
-          echo "Deleted models: $deleted_models"
+          echo "Checking for deleted models..."
+          deleted_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^D' || true)
+          echo "Deleted models:"
+          echo "$deleted_models"
           deleted_count=$(echo "$deleted_models" | wc -l)
           echo "Number of deleted models: $deleted_count"
 
           if [ "$deleted_count" -gt 0 ]; then
             echo "BREAKING CHANGE: Please review the changes. The following models were deleted or renamed:"
-            echo "$deleted_count"
+            echo "$deleted_models" | while read -r status file; do
+              echo "- $file"
+            done
             exit 1
           else
             echo "No models were deleted."
-          fi 
+          fi
 
       - name: Check for deleted or modified properties in the models
         run: |

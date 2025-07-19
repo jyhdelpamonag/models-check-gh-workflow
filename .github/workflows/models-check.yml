@@ -184,40 +184,82 @@ jobs:
       - name: Breaking changes found and approved
         run: echo "Breaking changes found and approved, workflow continues."
 
-  print-status:
-    needs: potential-breaking-changes-found-approved
+  generate-changelog-no-breaking-changes:
+    needs: no-breaking-changes-found
     runs-on: ubuntu-latest
-    steps:
-      - run: |
-          echo "potential-breaking-changes-found-approved result: ${{ needs.potential-breaking-changes-found-approved.result }}"
-
-  generate-changelog:
-    needs: [no-breaking-changes-found, potential-breaking-changes-found-approved]
-    runs-on: ubuntu-latest
-    if: ${{ 
-          (
-            (needs.no-breaking-changes-found.result == 'success' || needs.no-breaking-changes-found.result == 'skipped') 
-            && needs.potential-breaking-changes-found-approved.result != 'failure'
-          ) || (
-            (needs.potential-breaking-changes-found-approved.result == 'success' || needs.potential-breaking-changes-found-approved.result == 'skipped') 
-            && needs.no-breaking-changes-found.result != 'failure'
-          )
-        }}
+    if: needs.no-breaking-changes-found.result == 'success'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Generate changelog document
+      - name: Generate changelog document for no breaking changes
         run: |
-          echo "## Model Changes Changelog" > changelog.md
+          echo "## Model Changes Changelog (No Breaking Changes)" > changelog.md
           echo "" >> changelog.md
           echo "Changes between origin/main and HEAD:" >> changelog.md
           git diff --stat origin/main -- models >> changelog.md
           echo "" >> changelog.md
           echo "Detailed changes:" >> changelog.md
           git diff origin/main -- models >> changelog.md
+
+      - name: Post changelog as PR comment
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = 'changelog.md';
+
+            if (fs.existsSync(path)) {
+              const changelog = fs.readFileSync(path, 'utf8');
+              const pr = context.payload.pull_request;
+
+              if (!pr) {
+                core.warning("Not running in a pull request context. Skipping comment.");
+                return;
+              }
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: `### 📝 Models Changelog\n\n${changelog}`
+              });
+            } else {
+              core.warning('changelog.md not found, skipping PR comment.');
+            }
+
+
+  generate-changelog-with-potential-breaking-changes:
+    needs: potential-breaking-changes-found-approved
+    runs-on: ubuntu-latest
+    if: needs.potential-breaking-changes-found-approved.result == 'success'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog document with breaking change details
+        run: |
+          echo "## Model Changes Changelog (Breaking Changes Approved)" > changelog.md
+          echo "" >> changelog.md
+          echo "Changes between origin/main and HEAD:" >> changelog.md
+          git diff --stat origin/main -- models >> changelog.md
+          echo "" >> changelog.md
+          echo "Detailed changes:" >> changelog.md
+          git diff origin/main -- models >> changelog.md
+
+          echo "" >> changelog.md
+          echo "### ⚠️ Breaking Changes Detected:" >> changelog.md
+          echo "- List of breaking models or properties:" >> changelog.md
+          echo "  - (Replace with actual details from detection step or logs)" >> changelog.md
+
+          echo "" >> changelog.md
+          echo "### ✅ Approved By:" >> changelog.md
+          echo "- ${{ github.actor }}" >> changelog.md
 
       - name: Post changelog as PR comment
         uses: actions/github-script@v6

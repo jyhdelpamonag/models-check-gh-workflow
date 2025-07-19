@@ -19,14 +19,16 @@ jobs:
 
       - name: Check for deleted models and fail if any are found
         run: |
-          deleted_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^D' | wc -l)
-          if [ "$deleted_models" -gt 0 ]; then
-            deleted=$(git diff --name-only origin/${{ github.base_ref }} -- models | grep '^D')
-            echo "Error: Deleted models found."
+          deleted=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^D')
+          deleted_count=$(echo "$deleted" | wc -l)
+
+          if [ "$deleted_count" -gt 0 ]; then
+            echo "Error: Deleted models found:"
             echo "$deleted"
-            done
             exit 1
-          fi
+          else
+            echo "No deleted models found."
+          fi 
 
       - name: Check for renamed models and fail if any are found
         run: |

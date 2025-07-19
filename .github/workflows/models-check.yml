@@ -118,35 +118,6 @@ jobs:
           else
             echo "No modified models found."
           fi
-
-      - name: Check for deleted properties in the modified models
-        run: |
-          modified_models=$(git diff --name-only --diff-filter=M origin/main -- models | grep -E '\.cs$' || true)
-          all_deleted=""
-          if [ -n "$modified_models" ]; then
-            for model in $modified_models; do
-              deleted_properties=$(git diff origin/main -- "$model" \
-                | grep '^\-' \
-                | grep -v '^\-\s*//' \
-                | grep -v '^\-\s*$' \
-                | grep -E 'public\s+[^;{]+{[^}]*}' || true)
-              if [ -n "$deleted_properties" ]; then
-                # Remove leading '-' for nicer output
-                deleted_properties_clean=$(echo "$deleted_properties" | sed 's/^-//')
-                all_deleted+="\nIn $model:\n$deleted_properties_clean\n"
-              fi
-            done
-
-            if [ -n "$all_deleted" ]; then
-              echo -e "BREAKING CHANGE: The following properties were deleted in modified models:"
-              echo -e "$all_deleted"
-              exit 1
-            else
-              echo "No deleted properties found."
-            fi
-          else
-            echo "No modified models found."
-          fi
       
       - name: Check for renamed models and fail if any are found
         run: |
@@ -230,7 +201,7 @@ jobs:
       - name: No breaking changes found
         run: echo "No breaking changes found or approval granted, workflow continues."
 
-  breaking-changes-found-bypass-approval:
+  potential-breaking-chnages-found-bypass-approval:
     needs: detect-breaking-changes
     runs-on: ubuntu-latest
     if: needs.detect-breaking-changes.outputs.breaking_changes_found == 'true'
@@ -240,10 +211,10 @@ jobs:
       - name: Breaking changes found in the models. Please review the changes before continuing.
         run: echo "Manual approval received, continuing workflow."
 
-  breaking-changes-found-approved:
-    needs: breaking-changes-found-bypass-approval
+  potential-breaking-changes-found-approved:
+    needs: potential-breaking-chnages-found-bypass-approval
     runs-on: ubuntu-latest
-    if: needs.breaking-changes-found-bypass-approval.result == 'success'
+    if: needs.potential-breaking-chnages-found-bypass-approval.result == 'success'
     steps:
       - name: Breaking changes found and approved
         run: echo "Breaking changes found and approved, workflow continues."

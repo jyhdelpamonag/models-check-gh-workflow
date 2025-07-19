@@ -183,3 +183,50 @@ jobs:
     steps:
       - name: Breaking changes found and approved
         run: echo "Breaking changes found and approved, workflow continues."
+
+  generate-changelog:
+    needs: [no-breaking-changes-found, potential-breaking-changes-found-approved]
+    runs-on: ubuntu-latest
+    if: ${{ needs.no-breaking-changes-found.result == 'success' || needs.potential-breaking-changes-found-approved.result == 'success' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog document
+        run: |
+          echo "## Model Changes Changelog" > changelog.md
+          echo "" >> changelog.md
+          echo "Changes between origin/main and HEAD:" >> changelog.md
+          git diff --stat origin/main -- models >> changelog.md
+          echo "" >> changelog.md
+          echo "Detailed changes:" >> changelog.md
+          git diff origin/main -- models >> changelog.md
+
+      - name: Post changelog as PR comment
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = 'changelog.md';
+
+            if (fs.existsSync(path)) {
+              const changelog = fs.readFileSync(path, 'utf8');
+              const pr = context.payload.pull_request;
+
+              if (!pr) {
+                core.warning("Not running in a pull request context. Skipping comment.");
+                return;
+              }
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: `### 📝 Models Changelog\n\n${changelog}`
+              });
+            } else {
+              core.warning('changelog.md not found, skipping PR comment.');
+            }

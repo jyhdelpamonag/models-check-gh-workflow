@@ -78,13 +78,18 @@ jobs:
             echo -e "$moved_only"
           fi
 
+          if [-n "$moved_only" ]; then
+            echo "WARNING: The following models were moved but not renamed:"
+            echo -e "$moved_only"
+          fi
+
           if [ -n "$renamed" ]; then
-            echo "BREAKING CHANGE: Please review the changes. The following models were renamed:"
-            renamed_models=$(echo -e "$renamed")
+            echo "The following models were renamed:"
+            echo -e "$renamed"
             exit 1
           else
             echo "No models were renamed."
-          fi 
+          fi
 
       - name: Check for deleted or modified properties in the models
         run: |

@@ -15,8 +15,17 @@ jobs:
         with:
           fetch-depth: 0
           
+      - name: Determine base branch
+        id: base_ref
+        run: |
+          if [ -z "${{ github.base_ref }}" ]; then
+            echo "base_ref=main" >> $GITHUB_OUTPUT
+          else
+            echo "base_ref=${{ github.base_ref }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Fetch base branch
-        run: git fetch origin ${{ github.base_ref }}
+        run: git fetch origin ${{ steps.base_ref.outputs.base_ref }}
 
       - name: Print base ref
         run: | 

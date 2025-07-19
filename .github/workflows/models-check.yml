@@ -64,13 +64,8 @@ jobs:
             fi
           done <<< "$renamed_models"
 
-          if [-n "$moved_only" ]; then
+          if [ -n "$moved_only" ]; then
             echo "The following models were moved but not renamed:"
-            echo -e "$moved_only"
-          fi
-
-          if [-n "$moved_only" ]; then
-            echo "WARNING: The following models were moved but not renamed:"
             echo -e "$moved_only"
           fi
 

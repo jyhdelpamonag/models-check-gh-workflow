@@ -9,6 +9,8 @@ on:
 jobs:
   detect-breaking-changes:
     runs-on: ubuntu-latest
+    environment:
+      name: dev
     outputs:
       breaking_changes_found: ${{ steps.detect.outputs.breaking_changes_found }}
     steps:
@@ -103,7 +105,7 @@ jobs:
     environment:
       name: dev
     steps:
-      - name: Await manual approval
+      - name: Breaking changes found in the models. Please review the changes before continuing.
         run: echo "Manual approval received, continuing workflow."
 
   continue-if-no-breaking-or-approved:

@@ -24,10 +24,77 @@ jobs:
           
       - name: Fetch main branch
         run: git fetch origin main
+    
+      - name: Check for deleted models and fail if any are found
+        run: |
+          echo "Checking for deleted models..."
+          deleted_models=$(git diff --name-status origin/main -- models | grep '^D' || true)
+    
+          if [ -z "$deleted_models" ]; then
+            deleted_count=0
+          else
+            deleted_count=$(echo "$deleted_models" | wc -l)
+          fi
+
+          if [ "$deleted_count" -gt 0 ]; then
+            echo "BREAKING CHANGE: Please review the changes. The following models were deleted:"
+            echo "$deleted_models" | while read -r status file; do
+              echo "- $(basename "$file" .cs)"
+            done
+            exit 1
+          else
+            echo "No models were deleted."
+          fi
+
+      - name: Check for renamed models and fail if any are found
+        run: |
+          echo "Checking for renamed models..."
+          renamed_models=$(git diff --name-status origin/main -- models | grep '^R' || true)
+    
+          if [ -z "$renamed_models" ]; then
+            renamed_count=0
+          else
+            renamed_count=$(echo "$renamed_models" | wc -l)
+          fi
+
+          while read -r status oldfile newfile; do
+            if [[ "$status" == R* ]]; then
+              oldname=$(basename "$oldfile" .cs)
+              newname=$(basename "$newfile" .cs)
+
+              if [ "$oldname" != "$newname" ]; then
+                if [ -z "$renamed" ]; then
+                  renamed="- $oldname → $newname"
+                else
+                  renamed="$renamed\n- $oldname → $newname"
+                fi
+              else
+                if [ -z "$moved_only" ]; then
+                  moved_only="- $oldname"
+                else
+                  moved_only="$moved_only\n- $oldname"
+                fi
+              fi
+            fi
+          done <<< "$renamed_models"
+
+          if [ -n "$moved_only" ]; then
+            echo "WARNING: The following models were moved but not renamed:"
+            echo -e "$moved_only"
+          fi
+
+          if [ -n "$renamed" ]; then
+            echo "BREAKING CHANGE: Please review the changes. The following models were renamed:"
+            echo -e "$renamed"
+            exit 1
+          else
+            echo "No models were renamed."
+          fi
         
-      - name: Check for added properties and fail if not nullable or have default value
+      - name: Check for modified models and check the added properties. Fail if not nullable or have default value
         run: |
           modified_models=$(git diff --name-only --diff-filter=M origin/main -- models | grep -E '\.cs$' || true)
+          all_errors=""
           if [ -n "$modified_models" ]; then
             for model in $modified_models; do
               added_properties=$(git diff origin/main -- "$model" \
@@ -37,65 +104,98 @@ jobs:
                 | grep -E 'public\s+[^;{]+{[^}]*}' \
                 | grep -vE '\?\s*\w*\s*{|=\s*[^;]+;' || true)
               if [ -n "$added_properties" ]; then
-                echo "BREAKING CHANGE: The following properties were added without being nullable or having a default value in $model:"
-                echo "$added_properties"
-                exit 1
+                all_errors+="\nIn $model:\n$added_properties\n"
               fi
             done
+
+            if [ -n "$all_errors" ]; then
+              echo -e "BREAKING CHANGE: The following properties were added without being nullable or having a default value:"
+              echo -e "$all_errors"
+              exit 1
+            else
+              echo "No added properties without nullable/default value found."
+            fi
           else
             echo "No modified models found."
           fi
 
-      - name: Detect breaking changes
-        id: detect
+      - name: Check for deleted properties in the modified models
         run: |
-          breaking_changes_found=false
-          modified_list=()
-
-          echo "Checking for deleted models..."
-          deleted_models=$(git diff --name-status origin/main -- models | grep '^D' || true)
-          if [ -z "$deleted_models" ]; then
-            echo "No models were deleted."
-          else
-            echo "BREAKING CHANGE: The following models were deleted:"
-            echo "$deleted_models" | while read -r status file; do
-              echo "- $(basename "$file" .cs)"
+          modified_models=$(git diff --name-only --diff-filter=M origin/main -- models | grep -E '\.cs$' || true)
+          all_deleted=""
+          if [ -n "$modified_models" ]; then
+            for model in $modified_models; do
+              deleted_properties=$(git diff origin/main -- "$model" \
+                | grep '^\-' \
+                | grep -v '^\-\s*//' \
+                | grep -v '^\-\s*$' \
+                | grep -E 'public\s+[^;{]+{[^}]*}' || true)
+              if [ -n "$deleted_properties" ]; then
+                # Remove leading '-' for nicer output
+                deleted_properties_clean=$(echo "$deleted_properties" | sed 's/^-//')
+                all_deleted+="\nIn $model:\n$deleted_properties_clean\n"
+              fi
             done
-            breaking_changes_found=true
-          fi
 
+            if [ -n "$all_deleted" ]; then
+              echo -e "BREAKING CHANGE: The following properties were deleted in modified models:"
+              echo -e "$all_deleted"
+              exit 1
+            else
+              echo "No deleted properties found."
+            fi
+          else
+            echo "No modified models found."
+          fi
+      
+      - name: Check for renamed models and fail if any are found
+        run: |
           echo "Checking for renamed models..."
           renamed_models=$(git diff --name-status origin/main -- models | grep '^R' || true)
-
-          renamed=""
-          moved_only=""
-
+    
           if [ -z "$renamed_models" ]; then
-            echo "No models were renamed."
+            renamed_count=0
           else
-            while read -r status oldfile newfile; do
-              if [[ "$status" == R* ]]; then
-                oldname=$(basename "$oldfile" .cs)
-                newname=$(basename "$newfile" .cs)
+            renamed_count=$(echo "$renamed_models" | wc -l)
+          fi
 
-                if [ "$oldname" != "$newname" ]; then
+          while read -r status oldfile newfile; do
+            if [[ "$status" == R* ]]; then
+              oldname=$(basename "$oldfile" .cs)
+              newname=$(basename "$newfile" .cs)
+
+              if [ "$oldname" != "$newname" ]; then
+                if [ -z "$renamed" ]; then
+                  renamed="- $oldname → $newname"
+                else
                   renamed="$renamed\n- $oldname → $newname"
+                fi
+              else
+                if [ -z "$moved_only" ]; then
+                  moved_only="- $oldname"
                 else
                   moved_only="$moved_only\n- $oldname"
                 fi
               fi
-            done <<< "$renamed_models"
-
-            if [ -n "$moved_only" ]; then
-              echo -e "WARNING: The following models were moved but not renamed:$moved_only"
             fi
+          done <<< "$renamed_models"
 
-            if [ -n "$renamed" ]; then
-              echo -e "BREAKING CHANGE: The following models were renamed:$renamed"
-              breaking_changes_found=true
-            fi
+          if [ -n "$moved_only" ]; then
+            echo "WARNING: The following models were moved but not renamed:"
+            echo -e "$moved_only"
           fi
 
+          if [ -n "$renamed" ]; then
+            echo "BREAKING CHANGE: Please review the changes. The following models were renamed:"
+            echo -e "$renamed"
+            exit 1
+          else
+            echo "No models were renamed."
+          fi
+
+      - name: Detect potential breaking changes in modified models with modified properties
+        id: detect
+        run: |
           echo "Checking for deleted or modified properties in the models..."
           modified_models=$(git diff --name-only origin/main -- models | grep -E '\.cs$' || true)
 

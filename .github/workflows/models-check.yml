@@ -7,14 +7,10 @@ on:
       - 'models/**'
 
 jobs:
-  check-models:
+  detect-breaking-changes:
     runs-on: ubuntu-latest
-    environment:
-      name: dev
-
     outputs:
-      breaking_changes_found: ${{ steps.breaking-changes.outputs.breaking_changes_found }}
-
+      breaking_changes_found: ${{ steps.detect.outputs.breaking_changes_found }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -23,28 +19,26 @@ jobs:
           
       - name: Fetch main branch
         run: git fetch origin main
-      
+
       - name: Detect breaking changes
-        id: breaking-changes
+        id: detect
         run: |
           breaking_changes_found=false
-          # Check deleted models
+
           deleted_models=$(git diff --name-status origin/main -- models | grep '^D' || true)
           if [ -n "$deleted_models" ]; then
-            echo "Deleted models:"
+            echo "Deleted models detected:"
             echo "$deleted_models"
             breaking_changes_found=true
           fi
 
-          # Check renamed models
           renamed_models=$(git diff --name-status origin/main -- models | grep '^R' || true)
           if [ -n "$renamed_models" ]; then
-            echo "Renamed models:"
+            echo "Renamed models detected:"
             echo "$renamed_models"
             breaking_changes_found=true
           fi
 
-          # Check modified properties (simplified your original logic)
           modified_models=$(git diff --name-only origin/main -- models | grep -E '\.cs$' || true)
           modified_list=()
           if [ -n "$modified_models" ]; then
@@ -66,16 +60,20 @@ jobs:
 
           echo "::set-output name=breaking_changes_found::$breaking_changes_found"
 
-      - name: Approve breaking changes
-        if: steps.breaking-changes.outputs.breaking_changes_found == 'true'
-        run: echo "Waiting for manual approval..."
+  approval:
+    needs: detect-breaking-changes
+    runs-on: ubuntu-latest
+    if: needs.detect-breaking-changes.outputs.breaking_changes_found == 'true'
+    environment:
+      name: dev
+    steps:
+      - name: Await manual approval
+        run: echo "Manual approval received, continuing workflow."
 
-      - name: Fail if breaking changes found but no approval
-        if: steps.breaking-changes.outputs.breaking_changes_found == 'true' && github.event_name != 'workflow_dispatch'
-        run: |
-          echo "Breaking changes found and approval not granted. Failing the workflow."
-          exit 1
-
-      - name: Passed
-        if: steps.breaking-changes.outputs.breaking_changes_found == 'false'
-        run: echo "All checks passed. No breaking changes found."
+  continue-if-no-breaking-or-approved:
+    needs: [detect-breaking-changes, approval]
+    runs-on: ubuntu-latest
+    if: needs.detect-breaking-changes.outputs.breaking_changes_found == 'false' || needs.approval.result == 'success'
+    steps:
+      - name: Proceed with remaining steps
+        run: echo "No breaking changes found or approval granted, workflow continues."

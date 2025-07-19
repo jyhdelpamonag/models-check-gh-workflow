@@ -58,7 +58,7 @@ jobs:
 
           echo "Number of renamed models: $renamed_count"
 
-          moved_only = ""
+          moved_only=""
           renamed=""
 
           while read -r status oldfile newfile; do

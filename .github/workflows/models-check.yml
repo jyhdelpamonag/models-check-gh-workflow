@@ -189,9 +189,9 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ 
           (
-            needs.no-breaking-changes-found.result == 'success' && needs.potential-breaking-changes-found-approved.result != 'failure'
+            needs.no-breaking-changes-found.result == 'success' && needs.potential-breaking-changes-found-approved.result == 'skipped'
           ) || (
-            needs.potential-breaking-changes-found-approved.result == 'success' && needs.no-breaking-changes-found.result != 'failure'
+            needs.potential-breaking-changes-found-approved.result == 'success' && needs.no-breaking-changes-found.result == 'skipped'
           )
         }}
     steps:

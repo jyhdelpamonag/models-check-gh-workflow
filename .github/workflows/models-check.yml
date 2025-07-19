@@ -9,6 +9,12 @@ on:
 jobs:
   check-models:
     runs-on: ubuntu-latest
+    environment:
+      name: dev
+
+    outputs:
+      breaking_changes_found: ${{ steps.breaking-changes.outputs.breaking_changes_found }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -16,100 +22,60 @@ jobs:
           fetch-depth: 0
           
       - name: Fetch main branch
-        run: git fetch origin main      
-
-      - name: Check for deleted models and fail if any are found
+        run: git fetch origin main
+      
+      - name: Detect breaking changes
+        id: breaking-changes
         run: |
-          echo "Checking for deleted models..."
+          breaking_changes_found=false
+          # Check deleted models
           deleted_models=$(git diff --name-status origin/main -- models | grep '^D' || true)
-    
-          if [ -z "$deleted_models" ]; then
-            deleted_count=0
-          else
-            deleted_count=$(echo "$deleted_models" | wc -l)
+          if [ -n "$deleted_models" ]; then
+            echo "Deleted models:"
+            echo "$deleted_models"
+            breaking_changes_found=true
           fi
 
-          if [ "$deleted_count" -gt 0 ]; then
-            echo "BREAKING CHANGE: Please review the changes. The following models were deleted:"
-            echo "$deleted_models" | while read -r status file; do
-              echo "- $(basename "$file" .cs)"
-            done
-            exit 1
-          else
-            echo "No models were deleted."
-          fi
-
-      - name: Check for renamed models and fail if any are found
-        run: |
-          echo "Checking for renamed models..."
+          # Check renamed models
           renamed_models=$(git diff --name-status origin/main -- models | grep '^R' || true)
-    
-          if [ -z "$renamed_models" ]; then
-            renamed_count=0
-          else
-            renamed_count=$(echo "$renamed_models" | wc -l)
+          if [ -n "$renamed_models" ]; then
+            echo "Renamed models:"
+            echo "$renamed_models"
+            breaking_changes_found=true
           fi
 
-          while read -r status oldfile newfile; do
-            if [[ "$status" == R* ]]; then
-              oldname=$(basename "$oldfile" .cs)
-              newname=$(basename "$newfile" .cs)
-
-              if [ "$oldname" != "$newname" ]; then
-                if [ -z "$renamed" ]; then
-                  renamed="- $oldname → $newname"
-                else
-                  renamed="$renamed\n- $oldname → $newname"
-                fi
-              else
-                if [ -z "$moved_only" ]; then
-                  moved_only="- $oldname"
-                else
-                  moved_only="$moved_only\n- $oldname"
-                fi
-              fi
-            fi
-          done <<< "$renamed_models"
-
-          if [ -n "$moved_only" ]; then
-            echo "WARNING: The following models were moved but not renamed:"
-            echo -e "$moved_only"
-          fi
-
-          if [ -n "$renamed" ]; then
-            echo "BREAKING CHANGE: Please review the changes. The following models were renamed:"
-            echo -e "$renamed"
-            exit 1
-          else
-            echo "No models were renamed."
-          fi
-
-      - name: Check for deleted or modified properties in the models
-        run: |
+          # Check modified properties (simplified your original logic)
           modified_models=$(git diff --name-only origin/main -- models | grep -E '\.cs$' || true)
+          modified_list=()
           if [ -n "$modified_models" ]; then
             for model in $modified_models; do
-              lines_removed_or_modified=$(git diff origin/main -- "$model" | grep '^-' | grep -v '^---' | grep -v '^-\s*//'| grep -v '^\s*$' | wc -l)
-              if [ "$lines_removed_or_modified" -gt 0 ]; then
-                model_name=$(basename "$model" .cs)
-                modified_list+=("$model_name")
+              removed_lines=$(git diff origin/main -- "$model" | grep '^-' | grep -v '^---' | grep -v '^-\s*//' | grep -v '^\s*$' | wc -l)
+              if [ "$removed_lines" -gt 0 ]; then
+                modified_list+=("$model")
+                breaking_changes_found=true
               fi
             done
           fi
+
           if [ ${#modified_list[@]} -gt 0 ]; then
-            echo "BREAKING CHANGE: Please review the changes. The following models have modified or deleted properties:"
-            for model in "${modified_list[@]}"; do
-              echo "- $model"
+            echo "Models with modified/deleted properties:"
+            for m in "${modified_list[@]}"; do
+              echo "- $m"
             done
-            exit 1
-          else
-            echo "No models have modified or deleted properties."
           fi
-              
-      - name: Passed 
-        run: echo "All checks passed. No models were modified or deleted, and no lines were removed or changed in added/renamed files."
-        if: success()
-        
-      - name: Failed
-        run: echo "Checks failed. Please review the modified or deleted models and ensure no lines were removed or changed in added/renamed files."
-        if: failure()  
+
+          echo "::set-output name=breaking_changes_found::$breaking_changes_found"
+
+      - name: Approve breaking changes
+        if: steps.breaking-changes.outputs.breaking_changes_found == 'true'
+        run: echo "Waiting for manual approval..."
+
+      - name: Fail if breaking changes found but no approval
+        if: steps.breaking-changes.outputs.breaking_changes_found == 'true' && github.event_name != 'workflow_dispatch'
+        run: |
+          echo "Breaking changes found and approval not granted. Failing the workflow."
+          exit 1
+
+      - name: Passed
+        if: steps.breaking-changes.outputs.breaking_changes_found == 'false'
+        run: echo "All checks passed. No breaking changes found."

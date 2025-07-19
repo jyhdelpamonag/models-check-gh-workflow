@@ -24,6 +24,7 @@ jobs:
             deleted=$(git diff --name-only origin/${{ github.base_ref }} -- models | grep '^D')
             echo "Error: Deleted models found."
             echo "$deleted"
+            done
             exit 1
           fi
 

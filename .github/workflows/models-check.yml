@@ -110,11 +110,3 @@ jobs:
     steps:
       - name: Breaking changes found in the models. Please review the changes before continuing.
         run: echo "Manual approval received, continuing workflow."
-
-  continue-if-no-breaking-or-approved:
-    needs: [detect-breaking-changes, breaking-changes-found-bypass-approval]
-    runs-on: ubuntu-latest
-    if: needs.detect-breaking-changes.outputs.breaking_changes_found == 'false' || needs.breaking-changes-found-bypass-approval.result == 'success'
-    steps:
-      - name: Proceed with remaining steps
-        run: echo "No breaking changes found or approval granted, workflow continues."

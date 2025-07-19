@@ -56,6 +56,9 @@ jobs:
             if [ "$status" = "R" ]; then
               oldname=$(basename "$oldfile" .cs)
               newname=$(basename "$newfile" .cs)
+
+              echo "Renamed model: $oldname → $newname"
+              
               if [ "$oldname" != "$newname" ]; then
                 renamed="$renamed\n- $oldname  →  $newname"
               else

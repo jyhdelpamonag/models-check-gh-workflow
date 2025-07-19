@@ -30,7 +30,7 @@ jobs:
           fi
 
           if [ "$deleted_count" -gt 0 ]; then
-            echo "BREAKING CHANGE: Please review the changes. The following models were deleted or renamed:"
+            echo "BREAKING CHANGE: Please review the changes. The following models were deleted:"
             echo "$deleted_models" | while read -r status file; do
               echo "- $(basename "$file" .cs)"
             done

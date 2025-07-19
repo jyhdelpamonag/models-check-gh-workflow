@@ -8,7 +8,67 @@ on:
 jobs:
   check-models:
     runs-on: ubuntu-latest
+    steps:name: Check Models
+
+on: 
+  pull_request:
+    paths:
+      - 'models/**'
+
+jobs:
+  check-models:
+    runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Fetch base branch
+        run: git fetch origin ${{ github.base_ref }}
+
+      - name: Check for deleted models and fail if any are found
+        run: |
+          deleted_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^D')
+          deleted_count=$(echo "$deleted_models" | wc -l)
+
+          if [ "$deleted_count" -gt 0 ]; then
+            echo "BREAKING CHANGE: Please review the changes. The following models were deleted or renamed:"
+            echo "$deleted_count"
+            exit 1
+          else
+            echo "No models were deleted."
+          fi 
+
+      - name: Check for deleted or modified properties in the models
+        run: |
+          modified_models=$(git diff --name-only origin/${{ github.base_ref }} -- models | grep -E '\.cs$')
+          if [ -n "$modified_models" ]; then
+            for model in $modified_models; do
+              lines_removed_or_modified=$(git diff origin/${{ github.base_ref }} -- "$model" | grep '^-' | grep -v '^---' | grep -v '^-\s*//'| grep -v '^\s*$' | wc -l)
+              if [ "$lines_removed_or_modified" -gt 0 ]; then
+                model_name=$(basename "$model" .cs)
+                modified_list+=("$model_name")
+              fi
+            done
+          fi
+          if [ ${#modified_list[@]} -gt 0 ]; then
+            echo "BREAKING CHANGE: Please review the changes. The following models have modified or deleted properties:"
+            for model in "${modified_list[@]}"; do
+              echo "- $model"
+            done
+            exit 1
+          else
+            echo "No models have modified or deleted properties."
+          fi
+              
+      - name: Passed 
+        run: echo "All checks passed. No models were modified or deleted, and no lines were removed or changed in added/renamed files."
+        if: success()
+        
+      - name: Failed
+        run: echo "Checks failed. Please review the modified or deleted models and ensure no lines were removed or changed in added/renamed files."
+        if: failure()  
       - name: Checkout code
         uses: actions/checkout@v4
         with:

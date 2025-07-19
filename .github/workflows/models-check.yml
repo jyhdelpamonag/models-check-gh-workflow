@@ -18,6 +18,10 @@ jobs:
       - name: Fetch base branch
         run: git fetch origin ${{ github.base_ref }}
 
+      - name: Print base ref
+        run: | 
+          echo "Base ref is: ${{ github.base_ref }}"
+
       - name: Check for deleted models and fail if any are found
         run: |
           echo "Checking for deleted models..."

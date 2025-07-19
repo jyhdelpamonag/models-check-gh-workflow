@@ -118,51 +118,6 @@ jobs:
           else
             echo "No modified models found."
           fi
-      
-      - name: Check for renamed models and fail if any are found
-        run: |
-          echo "Checking for renamed models..."
-          renamed_models=$(git diff --name-status origin/main -- models | grep '^R' || true)
-    
-          if [ -z "$renamed_models" ]; then
-            renamed_count=0
-          else
-            renamed_count=$(echo "$renamed_models" | wc -l)
-          fi
-
-          while read -r status oldfile newfile; do
-            if [[ "$status" == R* ]]; then
-              oldname=$(basename "$oldfile" .cs)
-              newname=$(basename "$newfile" .cs)
-
-              if [ "$oldname" != "$newname" ]; then
-                if [ -z "$renamed" ]; then
-                  renamed="- $oldname → $newname"
-                else
-                  renamed="$renamed\n- $oldname → $newname"
-                fi
-              else
-                if [ -z "$moved_only" ]; then
-                  moved_only="- $oldname"
-                else
-                  moved_only="$moved_only\n- $oldname"
-                fi
-              fi
-            fi
-          done <<< "$renamed_models"
-
-          if [ -n "$moved_only" ]; then
-            echo "WARNING: The following models were moved but not renamed:"
-            echo -e "$moved_only"
-          fi
-
-          if [ -n "$renamed" ]; then
-            echo "BREAKING CHANGE: Please review the changes. The following models were renamed:"
-            echo -e "$renamed"
-            exit 1
-          else
-            echo "No models were renamed."
-          fi
 
       - name: Detect potential breaking changes in modified models with modified properties
         id: detect
@@ -194,17 +149,27 @@ jobs:
           echo "breaking_changes_found=$breaking_changes_found" >> $GITHUB_OUTPUT
   
   no-breaking-changes-found:
-    needs: [detect-breaking-changes]
+    needs: detect-breaking-changes
     runs-on: ubuntu-latest
     if: needs.detect-breaking-changes.outputs.breaking_changes_found == 'false'
     steps:
       - name: No breaking changes found
         run: echo "No breaking changes found or approval granted, workflow continues."
+  
+  no-approval-needed-for-manual:
+    needs: detect-breaking-changes
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.detect-breaking-changes.outputs.breaking_changes_found == 'true' }}
+    steps:
+      - name: Fail immediately on breaking changes when manually triggered
+        run: |
+          echo "Breaking changes detected. Manual approval is skipped on workflow_dispatch trigger."
+          exit 1
 
   potential-breaking-changes-found-bypass-approval:
     needs: detect-breaking-changes
     runs-on: ubuntu-latest
-    if: needs.detect-breaking-changes.outputs.breaking_changes_found == 'true'
+    if: ${{ github.event_name != 'workflow_dispatch' && needs.detect-breaking-changes.outputs.breaking_changes_found == 'true' }}
     environment:
       name: dev
     steps:

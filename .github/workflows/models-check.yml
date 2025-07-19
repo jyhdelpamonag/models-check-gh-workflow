@@ -77,7 +77,7 @@ jobs:
           fi
 
           if [ -n "$renamed" ]; then
-            echo "BREAKING CHANGE: The following models were renamed:"
+            echo "BREAKING CHANGE: Please review the changes. The following models were renamed:"
             echo -e "$renamed"
             exit 1
           else

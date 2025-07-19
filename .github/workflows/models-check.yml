@@ -19,7 +19,7 @@ jobs:
 
       - name: Check for deleted models and fail if any are found
         run: |
-          deleted_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^D' | grep -E '\.cs$' || true)
+          deleted_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^D' || true)
           deleted_count=$(echo "$deleted_models" | wc -l)
 
           if [ "$deleted_count" -gt 0 ]; then

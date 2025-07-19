@@ -21,7 +21,7 @@ jobs:
       - name: Check for deleted models and fail if any are found
         run: |
           echo "Checking for deleted models..."
-          deleted_models=$(git diff --name-status origin/main -- models | grep '^D' || true)
+          deleted_models=$(git diff --name-status origin/main -- models)
           echo "Deleted models: $deleted_models"
           deleted_count=$(echo "$deleted_models" | wc -l)
           echo "Number of deleted models: $deleted_count"

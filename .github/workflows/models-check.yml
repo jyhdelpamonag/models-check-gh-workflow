@@ -54,7 +54,7 @@ jobs:
           moved_only=""
           renamed=""
           while read -r status oldfile newfile; do
-            if [ "$status" = "R" ]; then
+            if [[ "$status" == R* ]]; then
               oldname=$(basename "$oldfile" .cs)
               newname=$(basename "$newfile" .cs)
 
@@ -68,8 +68,10 @@ jobs:
             fi
           done <<< "$renamed_models"
 
-          echo "The following models were moved but not renamed:"
-          echo -e "$moved_only"
+          if [ -n "$moved_only" ]; then
+            echo "The following models were moved but not renamed:"
+            echo -e "$moved_only"
+          fi
 
           if [ -n "$renamed" ]; then
             echo "The following models were renamed:"

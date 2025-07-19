@@ -37,7 +37,7 @@ jobs:
                 | grep -E 'public\s+[^;{]+{[^}]*}' \
                 | grep -vE '\?\s*\w*\s*{|=\s*[^;]+;' || true)
               if [ -n "$added_properties" ]; then
-                echo "ERROR: The following properties were added without being nullable or having a default value in $model:"
+                echo "BREAKING CHANGE: The following properties were added without being nullable or having a default value in $model:"
                 echo "$added_properties"
                 exit 1
               fi

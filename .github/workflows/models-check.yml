@@ -1,5 +1,9 @@
 name: Check Models
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on: 
   workflow_dispatch:
   pull_request:
@@ -97,7 +101,7 @@ jobs:
           # Set output with new syntax (recommended)
           echo "breaking_changes_found=$breaking_changes_found" >> $GITHUB_OUTPUT
 
-  approval:
+  breaking-changes-found-bypass-approval:
     needs: detect-breaking-changes
     runs-on: ubuntu-latest
     if: needs.detect-breaking-changes.outputs.breaking_changes_found == 'true'
@@ -108,9 +112,9 @@ jobs:
         run: echo "Manual approval received, continuing workflow."
 
   continue-if-no-breaking-or-approved:
-    needs: [detect-breaking-changes, approval]
+    needs: [detect-breaking-changes, breaking-changes-found-bypass-approval]
     runs-on: ubuntu-latest
-    if: needs.detect-breaking-changes.outputs.breaking_changes_found == 'false' || needs.approval.result == 'success'
+    if: needs.detect-breaking-changes.outputs.breaking_changes_found == 'false' || needs.breaking-changes-found-bypass-approval.result == 'success'
     steps:
       - name: Proceed with remaining steps
         run: echo "No breaking changes found or approval granted, workflow continues."

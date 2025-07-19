@@ -43,6 +43,31 @@ jobs:
             echo "No models were deleted."
           fi
 
+      - name: Check for renamed models and fail if any are found
+        run: |
+          echo "Checking for renamed models..."
+          renamed_models=$(git diff --name-status origin/main -- models | grep '^R' || true)
+    
+          if [ -z "$renamed_models" ]; then
+            renamed_count=0
+          else
+            echo "Renamed models:"
+            echo "$renamed_models"
+            renamed_count=$(echo "$renamed_models" | wc -l)
+          fi
+
+          echo "Number of renamed models: $renamed_count"
+
+          if [ "$renamed_count" -gt 0 ]; then
+            echo "BREAKING CHANGE: Please review the changes. The following models were renamed:"
+            echo "$renamed_models" | while read -r status file; do
+              echo "- $(basename "$file" .cs)"
+            done
+            exit 1
+          else
+            echo "No models were renamed."
+          fi
+
       - name: Check for deleted or modified properties in the models
         run: |
           modified_models=$(git diff --name-only origin/main -- models | grep -E '\.cs$' || true)

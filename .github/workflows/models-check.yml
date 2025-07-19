@@ -58,17 +58,33 @@ jobs:
 
           echo "Number of renamed models: $renamed_count"
 
-          if [ "$renamed_count" -gt 0 ]; then
-            echo "BREAKING CHANGE: Please review the changes. The following models were renamed:"
-            echo "$renamed_models" | while read -r status oldfile newfile; do
+          moved_only = ""
+          renamed=""
+
+          while read -r status oldfile newfile; do
+            if [ "$status" = "R" ]; then
               oldname=$(basename "$oldfile" .cs)
               newname=$(basename "$newfile" .cs)
-              echo "- $oldname  →  $newname"
-            done
+              if [ "$oldname" != "$newname" ]; then
+                renamed="$renamed\n- $oldname  →  $newname"
+              else
+                moved_only="$moved_only\n- $oldname"
+              fi
+            fi
+          done <<< "$renamed_models"
+
+          if [ -n "$moved_only" ]; then
+            echo "The following models were moved but not renamed:"
+            echo -e "$moved_only"
+          fi
+
+          if [ -n "$renamed" ]; then
+            echo "BREAKING CHANGE: Please review the changes. The following models were renamed:"
+            renamed_models=$(echo -e "$renamed")
             exit 1
           else
             echo "No models were renamed."
-          fi
+          fi 
 
       - name: Check for deleted or modified properties in the models
         run: |

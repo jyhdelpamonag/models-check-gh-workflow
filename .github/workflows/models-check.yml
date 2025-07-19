@@ -201,7 +201,7 @@ jobs:
       - name: No breaking changes found
         run: echo "No breaking changes found or approval granted, workflow continues."
 
-  potential-breaking-chnages-found-bypass-approval:
+  potential-breaking-changes-found-bypass-approval:
     needs: detect-breaking-changes
     runs-on: ubuntu-latest
     if: needs.detect-breaking-changes.outputs.breaking_changes_found == 'true'
@@ -212,9 +212,9 @@ jobs:
         run: echo "Manual approval received, continuing workflow."
 
   potential-breaking-changes-found-approved:
-    needs: potential-breaking-chnages-found-bypass-approval
+    needs: potential-breaking-changes-found-bypass-approval
     runs-on: ubuntu-latest
-    if: needs.potential-breaking-chnages-found-bypass-approval.result == 'success'
+    if: needs.potential-breaking-changes-found-bypass-approval.result == 'success'
     steps:
       - name: Breaking changes found and approved
         run: echo "Breaking changes found and approved, workflow continues."

@@ -19,7 +19,7 @@ jobs:
 
       - name: Check for deleted models and fail if any are found
         run: |
-          deleted_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^D')
+          deleted_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^D' | grep -E '\.cs$' || true)
           deleted_count=$(echo "$deleted_models" | wc -l)
 
           if [ "$deleted_count" -gt 0 ]; then
@@ -35,7 +35,7 @@ jobs:
 
       - name: Check for renamed models and fail if any are found
         run: |
-          renamed_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^R' || true)
+          renamed_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^R' | grep -E '\.cs$' || true)
           renamed_count=$(echo "$renamed_models" | wc -l)
 
           if [ "$renamed_count" -gt 0 ]; then

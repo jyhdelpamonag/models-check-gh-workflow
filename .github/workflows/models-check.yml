@@ -18,47 +18,83 @@ jobs:
           fetch-depth: 0
           
       - name: Fetch main branch
-        run: git fetch origin main
+        run: git fetch origin main      
 
       - name: Detect breaking changes
         id: detect
         run: |
           breaking_changes_found=false
-
-          deleted_models=$(git diff --name-status origin/main -- models | grep '^D' || true)
-          if [ -n "$deleted_models" ]; then
-            echo "Deleted models detected:"
-            echo "$deleted_models"
-            breaking_changes_found=true
-          fi
-
-          renamed_models=$(git diff --name-status origin/main -- models | grep '^R' || true)
-          if [ -n "$renamed_models" ]; then
-            echo "Renamed models detected:"
-            echo "$renamed_models"
-            breaking_changes_found=true
-          fi
-
-          modified_models=$(git diff --name-only origin/main -- models | grep -E '\.cs$' || true)
           modified_list=()
+
+          echo "Checking for deleted models..."
+          deleted_models=$(git diff --name-status origin/main -- models | grep '^D' || true)
+          if [ -z "$deleted_models" ]; then
+            echo "No models were deleted."
+          else
+            echo "BREAKING CHANGE: The following models were deleted:"
+            echo "$deleted_models" | while read -r status file; do
+              echo "- $(basename "$file" .cs)"
+            done
+            breaking_changes_found=true
+          fi
+
+          echo "Checking for renamed models..."
+          renamed_models=$(git diff --name-status origin/main -- models | grep '^R' || true)
+
+          renamed=""
+          moved_only=""
+
+          if [ -z "$renamed_models" ]; then
+            echo "No models were renamed."
+          else
+            while read -r status oldfile newfile; do
+              if [[ "$status" == R* ]]; then
+                oldname=$(basename "$oldfile" .cs)
+                newname=$(basename "$newfile" .cs)
+
+                if [ "$oldname" != "$newname" ]; then
+                  renamed="$renamed\n- $oldname → $newname"
+                else
+                  moved_only="$moved_only\n- $oldname"
+                fi
+              fi
+            done <<< "$renamed_models"
+
+            if [ -n "$moved_only" ]; then
+              echo -e "WARNING: The following models were moved but not renamed:$moved_only"
+            fi
+
+            if [ -n "$renamed" ]; then
+              echo -e "BREAKING CHANGE: The following models were renamed:$renamed"
+              breaking_changes_found=true
+            fi
+          fi
+
+          echo "Checking for deleted or modified properties in the models..."
+          modified_models=$(git diff --name-only origin/main -- models | grep -E '\.cs$' || true)
+
           if [ -n "$modified_models" ]; then
             for model in $modified_models; do
-              removed_lines=$(git diff origin/main -- "$model" | grep '^-' | grep -v '^---' | grep -v '^-\s*//' | grep -v '^\s*$' | wc -l)
-              if [ "$removed_lines" -gt 0 ]; then
-                modified_list+=("$model")
-                breaking_changes_found=true
+              lines_removed_or_modified=$(git diff origin/main -- "$model" | grep '^-' | grep -v '^---' | grep -v '^-\s*//'| grep -v '^\s*$' | wc -l)
+              if [ "$lines_removed_or_modified" -gt 0 ]; then
+                model_name=$(basename "$model" .cs)
+                modified_list+=("$model_name")
               fi
             done
           fi
 
           if [ ${#modified_list[@]} -gt 0 ]; then
-            echo "Models with modified/deleted properties:"
-            for m in "${modified_list[@]}"; do
-              echo "- $m"
+            echo "BREAKING CHANGE: The following models have modified or deleted properties:"
+            for model in "${modified_list[@]}"; do
+              echo "- $model"
             done
+            breaking_changes_found=true
+          else
+            echo "No models have modified or deleted properties."
           fi
 
-          echo "::set-output name=breaking_changes_found::$breaking_changes_found"
+          # Set output with new syntax (recommended)
+          echo "breaking_changes_found=$breaking_changes_found" >> $GITHUB_OUTPUT
 
   approval:
     needs: detect-breaking-changes

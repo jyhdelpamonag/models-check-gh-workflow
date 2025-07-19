@@ -187,6 +187,15 @@ jobs:
   generate-changelog:
     needs: [no-breaking-changes-found, potential-breaking-changes-found-approved]
     runs-on: ubuntu-latest
+    if: ${{ 
+          (
+            (needs.no-breaking-changes-found.result == 'success' || needs.no-breaking-changes-found.result == 'skipped') 
+            && needs.potential-breaking-changes-found-approved.result != 'failure'
+          ) || (
+            (needs.potential-breaking-changes-found-approved.result == 'success' || needs.potential-breaking-changes-found-approved.result == 'skipped') 
+            && needs.no-breaking-changes-found.result != 'failure'
+          )
+        }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

@@ -185,11 +185,10 @@ jobs:
         run: echo "Breaking changes found and approved, workflow continues."
 
   print-status:
-    needs: [no-breaking-changes-found, potential-breaking-changes-found-approved]
+    needs: potential-breaking-changes-found-approved
     runs-on: ubuntu-latest
     steps:
       - run: |
-          echo "no-breaking-changes-found result: ${{ needs.no-breaking-changes-found.result }}"
           echo "potential-breaking-changes-found-approved result: ${{ needs.potential-breaking-changes-found-approved.result }}"
 
   generate-changelog:

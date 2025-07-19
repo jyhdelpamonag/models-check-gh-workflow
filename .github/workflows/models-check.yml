@@ -15,26 +15,13 @@ jobs:
         with:
           fetch-depth: 0
           
-      - name: Determine base branch
-        id: base_ref
-        run: |
-          if [ -z "${{ github.base_ref }}" ]; then
-            echo "base_ref=main" >> $GITHUB_OUTPUT
-          else
-            echo "base_ref=${{ github.base_ref }}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Fetch base branch
-        run: git fetch origin ${{ steps.base_ref.outputs.base_ref }}
-
-      - name: Print base ref
-        run: | 
-          echo "Base ref is: ${{ github.base_ref }}"
+      - name: Fetch main branch
+        run: git fetch origin main
 
       - name: Check for deleted models and fail if any are found
         run: |
           echo "Checking for deleted models..."
-          deleted_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^D' || true)
+          deleted_models=$(git diff --name-status origin/main -- models | grep '^D' || true)
           echo "Deleted models:"
           echo "$deleted_models"
           deleted_count=$(echo "$deleted_models" | wc -l)
@@ -52,10 +39,10 @@ jobs:
 
       - name: Check for deleted or modified properties in the models
         run: |
-          modified_models=$(git diff --name-only origin/${{ github.base_ref }} -- models | grep -E '\.cs$')
+          modified_models=$(git diff --name-only origin/main -- models | grep -E '\.cs$')
           if [ -n "$modified_models" ]; then
             for model in $modified_models; do
-              lines_removed_or_modified=$(git diff origin/${{ github.base_ref }} -- "$model" | grep '^-' | grep -v '^---' | grep -v '^-\s*//'| grep -v '^\s*$' | wc -l)
+              lines_removed_or_modified=$(git diff origin/main -- "$model" | grep '^-' | grep -v '^---' | grep -v '^-\s*//'| grep -v '^\s*$' | wc -l)
               if [ "$lines_removed_or_modified" -gt 0 ]; then
                 model_name=$(basename "$model" .cs)
                 modified_list+=("$model_name")

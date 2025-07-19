@@ -23,7 +23,28 @@ jobs:
           fetch-depth: 0
           
       - name: Fetch main branch
-        run: git fetch origin main      
+        run: git fetch origin main
+        
+      - name: Check for added properties and fail if not nullable or have default value
+        run: |
+          modified_models=$(git diff --name-only origin/main -- models | grep -E '\.cs$' || true)
+          if [ -n "$modified_models" ]; then
+            for model in $modified_models; do
+              added_properties=$(git diff origin/main -- "$model" \
+                | grep '^\+' \
+                | grep -v '^\+\s*//' \
+                | grep -v '^\+\s*$' \
+                | grep -E 'public\s+[^;{]+{[^}]*}' \
+                | grep -vE '\?\s*\w*\s*{|=\s*[^;]+;' || true)
+              if [ -n "$added_properties" ]; then
+                echo "ERROR: The following properties were added without being nullable or having a default value in $model:"
+                echo "$added_properties"
+                exit 1
+              fi
+            done
+          else
+            echo "No modified models found."
+          fi
 
       - name: Detect breaking changes
         id: detect
@@ -101,32 +122,6 @@ jobs:
           # Set output with new syntax (recommended)
           echo "breaking_changes_found=$breaking_changes_found" >> $GITHUB_OUTPUT
   
-  check-modified-properties:
-    needs: detect-breaking-changes
-    runs-on: ubuntu-latest
-    if: needs.detect-breaking-changes.outputs.breaking_changes_found == 'false'
-    steps:
-      - name: Check for added properties and fail if not nullable or have default value
-        run: |
-          modified_models=$(git diff --name-only origin/main -- models | grep -E '\.cs$' || true)
-          if [ -n "$modified_models" ]; then
-            for model in $modified_models; do
-              added_properties=$(git diff origin/main -- "$model" \
-                | grep '^\+' \
-                | grep -v '^\+\s*//' \
-                | grep -v '^\+\s*$' \
-                | grep -E 'public\s+[^;{]+{[^}]*}' \
-                | grep -vE '\?\s*\w*\s*{|=\s*[^;]+;' || true)
-              if [ -n "$added_properties" ]; then
-                echo "ERROR: The following properties were added without being nullable or having a default value in $model:"
-                echo "$added_properties"
-                exit 1
-              fi
-            done
-          else
-            echo "No modified models found."
-          fi
-
   no-breaking-changes-found:
     needs: [detect-breaking-changes]
     runs-on: ubuntu-latest

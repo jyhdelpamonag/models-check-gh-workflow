@@ -47,7 +47,6 @@ jobs:
           if [ -z "$renamed_models" ]; then
             renamed_count=0
           else
-            echo "$renamed_models"
             renamed_count=$(echo "$renamed_models" | wc -l)
           fi
 
@@ -55,8 +54,6 @@ jobs:
             if [[ "$status" == R* ]]; then
               oldname=$(basename "$oldfile" .cs)
               newname=$(basename "$newfile" .cs)
-
-              echo "Renamed model: $oldname → $newname"
 
               if [ "$oldname" != "$newname" ]; then
                 if [ -z "$renamed" ]; then

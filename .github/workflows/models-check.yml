@@ -61,7 +61,7 @@ jobs:
               echo "Renamed model: $oldname → $newname"
 
               if [ "$oldname" != "$newname" ]; then
-                renamed="$renamed\n- $oldname  →  $newname"
+                renamed="$renamed\n- $oldname → $newname"
               else
                 moved_only="$moved_only\n- $oldname"
               fi

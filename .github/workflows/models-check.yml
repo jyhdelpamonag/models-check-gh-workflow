@@ -51,8 +51,6 @@ jobs:
             renamed_count=$(echo "$renamed_models" | wc -l)
           fi
 
-          moved_only=""
-          renamed=""
           while read -r status oldfile newfile; do
             if [[ "$status" == R* ]]; then
               oldname=$(basename "$oldfile" .cs)
@@ -61,20 +59,28 @@ jobs:
               echo "Renamed model: $oldname → $newname"
 
               if [ "$oldname" != "$newname" ]; then
-                renamed="$renamed\n- $oldname → $newname"
+                if [ -z "$renamed" ]; then
+                  renamed="- $oldname → $newname"
+                else
+                  renamed="$renamed\n- $oldname → $newname"
+                fi
               else
-                moved_only="$moved_only\n- $oldname"
+                if [ -z "$moved_only" ]; then
+                  moved_only="- $oldname"
+                else
+                  moved_only="$moved_only\n- $oldname"
+                fi
               fi
             fi
           done <<< "$renamed_models"
 
           if [ -n "$moved_only" ]; then
-            echo "The following models were moved but not renamed:"
+            echo "WARNING: The following models were moved but not renamed:"
             echo -e "$moved_only"
           fi
 
           if [ -n "$renamed" ]; then
-            echo "The following models were renamed:"
+            echo "BREAKING CHANGE: The following models were renamed:"
             echo -e "$renamed"
             exit 1
           else

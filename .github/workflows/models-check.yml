@@ -19,11 +19,11 @@ jobs:
 
       - name: Check for deleted models and fail if any are found
         run: |
-          deleted_models=$(git diff --find-renames=20% --name-status origin/${{ github.base_ref }} -- models | grep '^D' | grep -E '\.cs$' || true)
+          deleted_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^D' | grep -E '\.cs$' || true)
           deleted_count=$(echo "$deleted_models" | wc -l)
 
           if [ "$deleted_count" -gt 0 ]; then
-            echo "BREAKING CHANGE: Please review the changes. The following models were deleted:"
+            echo "BREAKING CHANGE: Please review the changes. The following models were deleted or renamed:"
             echo "$deleted_models" | while read -r line; do
               model_name=$(basename "$line" .cs)
               echo "- $model_name"
@@ -32,23 +32,6 @@ jobs:
           else
             echo "No models were deleted."
           fi 
-
-      - name: Check for renamed models and fail if any are found
-        run: |
-          renamed_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^R' | grep -E '\.cs$' || true)
-          renamed_count=$(echo "$renamed_models" | wc -l)
-
-          if [ "$renamed_count" -gt 0 ]; then
-            echo "BREAKING CHANGE: Please review the changes. The following models were renamed:"
-            echo "$renamed_models" | while read -r status old_file new_file; do
-              old_name=$(basename "$old_file" .cs)
-              new_name=$(basename "$new_file" .cs)
-              echo "- \`$old_name\` ➜ \`$new_name\`"
-            done
-            exit 1
-          else
-            echo "No models were renamed or moved."
-          fi
 
       - name: Check for deleted or modified properties in the models
         run: |

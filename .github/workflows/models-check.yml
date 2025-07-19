@@ -10,8 +10,6 @@ on:
 jobs:
   detect-breaking-changes:
     runs-on: ubuntu-latest
-    environment:
-      name: dev
     outputs:
       breaking_changes_found: ${{ steps.detect.outputs.breaking_changes_found }}
     steps:

@@ -11,6 +11,11 @@ on:
     paths:
       - 'models/**'
 
+permissions:
+  contents: write
+  pull-requests: write
+
+
 jobs:
   detect-breaking-changes:
     runs-on: ubuntu-latest

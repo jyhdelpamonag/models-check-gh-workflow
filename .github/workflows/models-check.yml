@@ -26,12 +26,8 @@ jobs:
           if [ -z "$deleted_models" ]; then
             deleted_count=0
           else
-            echo "Deleted models:"
-            echo "$deleted_models"
             deleted_count=$(echo "$deleted_models" | wc -l)
           fi
-
-          echo "Number of deleted models: $deleted_count"
 
           if [ "$deleted_count" -gt 0 ]; then
             echo "BREAKING CHANGE: Please review the changes. The following models were deleted or renamed:"
@@ -51,16 +47,11 @@ jobs:
           if [ -z "$renamed_models" ]; then
             renamed_count=0
           else
-            echo "Renamed models:"
-            echo "$renamed_models"
             renamed_count=$(echo "$renamed_models" | wc -l)
           fi
 
-          echo "Number of renamed models: $renamed_count"
-
           moved_only=""
           renamed=""
-
           while read -r status oldfile newfile; do
             if [ "$status" = "R" ]; then
               oldname=$(basename "$oldfile" .cs)
@@ -73,7 +64,7 @@ jobs:
             fi
           done <<< "$renamed_models"
 
-          if [ -n "$moved_only" ]; then
+          if [-n "$moved_only" ]; then
             echo "The following models were moved but not renamed:"
             echo -e "$moved_only"
           fi

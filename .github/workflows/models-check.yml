@@ -21,7 +21,9 @@ jobs:
         run: |
           deleted_models=$(git diff --name-status origin/${{ github.base_ref }} -- models | grep '^D' | wc -l)
           if [ "$deleted_models" -gt 0 ]; then
+            deleted=$(git diff --name-only origin/${{ github.base_ref }} -- models | grep '^D')
             echo "Error: Deleted models found."
+            echo "$deleted"
             exit 1
           fi
 

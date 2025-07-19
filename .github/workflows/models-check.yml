@@ -24,8 +24,7 @@ jobs:
 
           if [ "$deleted_count" -gt 0 ]; then
             echo "BREAKING CHANGE: Please review the changes. The following models were deleted or renamed:"
-            echo "$deleted_models" | while read -r status model; do
-              echo "$model"
+            echo "$deleted_models"
             done
             exit 1
           else

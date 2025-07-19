@@ -27,7 +27,7 @@ jobs:
         
       - name: Check for added properties and fail if not nullable or have default value
         run: |
-          modified_models=$(git diff --name-only origin/main -- models | grep -E '\.cs$' || true)
+          modified_models=$(git diff --name-only --diff-filter=M origin/main -- models | grep -E '\.cs$' || true)
           if [ -n "$modified_models" ]; then
             for model in $modified_models; do
               added_properties=$(git diff origin/main -- "$model" \

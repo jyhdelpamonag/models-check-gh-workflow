@@ -22,7 +22,7 @@ jobs:
     outputs:
       breaking_changes_found: ${{ steps.detect.outputs.breaking_changes_found }}
       added_models: ${{ steps.gather.outputs.added_models }}
-      added_properties_list: ${{ steps.gather.outputs.added_properties_list }}
+      added_properties_list: ${{ steps.added-properties.outputs.added_properties_list }}
       breaking_changes_list: ${{ steps.detect.outputs.breaking_changes_list }}
     steps:
       - name: Checkout code
@@ -101,6 +101,7 @@ jobs:
           fi
         
       - name: Check for modified models and check the added properties. Fail if not nullable or have default value
+        id: added-properties
         run: |
           echo "Checking for modified models and added properties..."
 

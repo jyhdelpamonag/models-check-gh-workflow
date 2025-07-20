@@ -189,7 +189,7 @@ jobs:
 
           # Get added and modified model files
           added_models=$(git diff --name-only --diff-filter=A origin/main -- models | grep -E '\.cs$' || true)
-          modified_models=$(git diff --name-only --diff-filter=M origin/main -- models | grep -E '\.cs$' || true)
+          modified_models=$(git diff --name-only origin/main -- models | grep -E '\.cs$' || true)
 
           echo "Added models:"
           if [ -n "$added_models" ]; then

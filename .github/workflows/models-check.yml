@@ -21,6 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       breaking_changes_found: ${{ steps.detect.outputs.breaking_changes_found }}
+      added_properties_list: ${{ steps.gather.outputs.added_properties_list }}
+      breaking_changes_list: ${{ steps.detect.outputs.breaking_changes_list }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -29,6 +31,7 @@ jobs:
           
       - name: Fetch main branch
         run: git fetch origin main
+
     
       - name: Check for deleted models and fail if any are found
         run: |
@@ -130,36 +133,128 @@ jobs:
           echo "Checking for deleted or modified properties in the models..."
           modified_models=$(git diff --name-only origin/main -- models | grep -E '\.cs$' || true)
 
+          declare -A breaking_changes
+          breaking_changes_found=false
+
           if [ -n "$modified_models" ]; then
             for model in $modified_models; do
-              lines_removed_or_modified=$(git diff origin/main -- "$model" | grep '^-' | grep -v '^---' | grep -v '^-\s*//'| grep -v '^\s*$' | wc -l)
-              if [ "$lines_removed_or_modified" -gt 0 ]; then
-                model_name=$(basename "$model" .cs)
-                modified_list+=("$model_name")
+              # Get removed or modified property lines (simplified to typical C# auto-properties or properties)
+              # Property lines typically contain accessors like { get; set; }, and exclude comments and other code
+              prop_lines=$(git diff origin/main -- "$model" | grep '^-' | grep -v '^---' | grep -v '^-\s*//' | grep -v '^\s*$' | grep -E '^\s*-\s*public .* { get; set; }' || true)
+
+              if [ -n "$prop_lines" ]; then
+                model_name=$(basename "$model")
+                # Extract property names from those lines
+                props=()
+                while IFS= read -r line; do
+                  # line looks like: "-    public string PropertyName { get; set; }"
+                  # Extract the property name using regex
+                  # Remove leading "- ", then capture the word after "public <type>"
+                  prop_name=$(echo "$line" | sed -E 's/^- *public [^ ]+ ([^ ]+) .*$/\1/')
+                  props+=("$prop_name")
+                done <<< "$prop_lines"
+
+                # Save in associative array: join props by comma or newline
+                breaking_changes["$model_name"]="${props[*]}"
+                breaking_changes_found=true
               fi
             done
           fi
 
-          if [ ${#modified_list[@]} -gt 0 ]; then
+          if [ "$breaking_changes_found" = true ]; then
             echo "BREAKING CHANGE: The following models have modified or deleted properties:"
-            for model in "${modified_list[@]}"; do
-              echo "- $model"
+            for model in "${!breaking_changes[@]}"; do
+              echo "$model:"
+              for prop in ${breaking_changes[$model]}; do
+                echo "  - $prop"
+              done
             done
-            breaking_changes_found=true
           else
             echo "No models have modified or deleted properties."
           fi
 
-          # Set output with new syntax (recommended)
+          # Export output flag for GitHub Actions
           echo "breaking_changes_found=$breaking_changes_found" >> $GITHUB_OUTPUT
+
+          # Optional: export the list as a string if you want to use in other steps
+          # Format: ModelName:Prop1,Prop2;AnotherModel:PropX
+          breaking_list=""
+          for model in "${!breaking_changes[@]}"; do
+            props_csv=$(echo "${breaking_changes[$model]}" | tr ' ' ',')
+            breaking_list+="${model}:${props_csv};"
+          done
+          echo "breaking_changes_list=$breaking_list" >> $GITHUB_OUTPUT
+
   
-  no-breaking-changes-found:
-    needs: detect-breaking-changes
-    runs-on: ubuntu-latest
-    if: needs.detect-breaking-changes.outputs.breaking_changes_found == 'false'
-    steps:
-      - name: No breaking changes found
-        run: echo "No breaking changes found or approval granted, workflow continues."
+      - name: Gather all added models and added properties on modified models and save it on a list
+        id: gather
+        run: |
+          echo "Gathering added models and properties..."
+
+          # Get added and modified model files
+          added_models=$(git diff --name-only --diff-filter=A origin/main -- models | grep -E '\.cs$' || true)
+          modified_models=$(git diff --name-only --diff-filter=M origin/main -- models | grep -E '\.cs$' || true)
+
+          echo "Added models:"
+          if [ -n "$added_models" ]; then
+            echo "$added_models"
+          else
+            echo "No new models added."
+          fi
+
+          echo "Modified models:"
+          if [ -n "$modified_models" ]; then
+            echo "$modified_models"
+          else
+            echo "No modified models found."
+          fi
+
+          declare -A added_props_map
+
+          # For each modified model, extract added properties (added public properties)
+          if [ -n "$modified_models" ]; then
+            for model in $modified_models; do
+              added_props=$(git diff origin/main -- "$model" \
+                | grep '^+' \
+                | grep -v '^\+\+\+' \
+                | grep -v '^\+\s*//' \
+                | grep -v '^\+\s*$' \
+                | grep -E '^\+\s*public .* { get; set; }' || true)
+
+              if [ -n "$added_props" ]; then
+                props=()
+                while IFS= read -r line; do
+                  prop_name=$(echo "$line" | sed -E 's/^\+\s*public [^ ]+ ([^ ]+) .*$/\1/')
+                  props+=("$prop_name")
+                done <<< "$added_props"
+
+                added_props_map["$model"]="${props[*]}"
+              fi
+            done
+          fi
+
+          if [ ${#added_props_map[@]} -gt 0 ]; then
+            echo "Added properties by model:"
+            for model in "${!added_props_map[@]}"; do
+              echo "$model:"
+              for prop in ${added_props_map[$model]}; do
+                echo "  - $prop"
+              done
+            done
+          else
+            echo "No added properties found inside modified models."
+          fi
+
+          # Export outputs
+          echo "added_models=$added_models" >> $GITHUB_OUTPUT
+          echo "added_properties=$modified_models" >> $GITHUB_OUTPUT
+
+          added_props_list=""
+          for model in "${!added_props_map[@]}"; do
+            props_csv=$(echo "${added_props_map[$model]}" | tr ' ' ',')
+            added_props_list+="${model}:${props_csv};"
+          done
+          echo "added_properties_list=$added_props_list" >> $GITHUB_OUTPUT
   
   no-approval-needed-for-manual:
     needs: detect-breaking-changes
@@ -190,9 +285,9 @@ jobs:
         run: echo "Breaking changes found and approved, workflow continues."
 
   generate-changelog-no-breaking-changes:
-    needs: no-breaking-changes-found
+    needs: detect-breaking-changes
     runs-on: ubuntu-latest
-    if: needs.no-breaking-changes-found.result == 'success'
+    if: ${{ github.event_name != 'workflow_dispatch' && needs.detect-breaking-changes.outputs.breaking_changes_found == 'false' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -200,6 +295,8 @@ jobs:
           fetch-depth: 0
 
       - name: Generate changelog document for no breaking changes
+        env:
+          ADDED_PROPERTIES_LIST: ${{ needs.detect-breaking-changes.outputs.added_properties_list }}
         run: |
           echo "## Model Changes Changelog (No Breaking Changes)" > changelog.md
           echo "" >> changelog.md
@@ -208,6 +305,27 @@ jobs:
           echo "" >> changelog.md
           echo "Detailed changes:" >> changelog.md
           git diff origin/main -- models >> changelog.md
+
+          echo "" >> changelog.md
+          echo "### ➕ Added Properties in Modified Models:" >> changelog.md
+          if [ -n "$ADDED_PROPERTIES_LIST" ]; then
+            IFS=';' read -ra models <<< "$ADDED_PROPERTIES_LIST"
+            for entry in "${models[@]}"; do
+              model="${entry%%:*}"
+              props="${entry#*:}"
+              echo "- $model" >> changelog.md
+              IFS=',' read -ra prop_array <<< "$props"
+              for prop in "${prop_array[@]}"; do
+                echo "  - $prop" >> changelog.md
+              done
+            done
+          else
+            echo "- None" >> changelog.md
+          fi
+
+          echo "" >> changelog.md
+          echo "### 🧑 Changed By:" >> changelog.md
+          echo "- ${{ github.actor }}" >> changelog.md
 
       - name: Post changelog as PR comment
         uses: actions/github-script@v6
@@ -238,7 +356,7 @@ jobs:
 
 
   generate-changelog-with-potential-breaking-changes:
-    needs: potential-breaking-changes-found-approved
+    needs: [potential-breaking-changes-found-approved, detect-breaking-changes]
     runs-on: ubuntu-latest
     if: needs.potential-breaking-changes-found-approved.result == 'success'
     steps:
@@ -248,6 +366,9 @@ jobs:
           fetch-depth: 0
 
       - name: Generate changelog document with breaking change details
+        env:
+          BREAKING_CHANGES_LIST: ${{ needs.detect-breaking-changes.outputs.breaking_changes_list }}
+          ADDED_PROPERTIES_LIST: ${{ needs.detect-breaking-changes.outputs.added_properties_list }}
         run: |
           echo "## Model Changes Changelog (Breaking Changes Approved)" > changelog.md
           echo "" >> changelog.md
@@ -259,8 +380,37 @@ jobs:
 
           echo "" >> changelog.md
           echo "### ⚠️ Breaking Changes Detected:" >> changelog.md
-          echo "- List of breaking models or properties:" >> changelog.md
-          echo "  - (Replace with actual details from detection step or logs)" >> changelog.md
+          if [ -n "$BREAKING_CHANGES_LIST" ]; then
+            IFS=';' read -ra models <<< "$BREAKING_CHANGES_LIST"
+            for entry in "${models[@]}"; do
+              model="${entry%%:*}"
+              props="${entry#*:}"
+              echo "- $model" >> changelog.md
+              IFS=',' read -ra prop_array <<< "$props"
+              for prop in "${prop_array[@]}"; do
+                echo "  - $prop" >> changelog.md
+              done
+            done
+          else
+            echo "- None detected." >> changelog.md
+          fi
+
+          echo "" >> changelog.md
+          echo "### ➕ Added Properties:" >> changelog.md
+          if [ -n "$ADDED_PROPERTIES_LIST" ]; then
+            IFS=';' read -ra models <<< "$ADDED_PROPERTIES_LIST"
+            for entry in "${models[@]}"; do
+              model="${entry%%:*}"
+              props="${entry#*:}"
+              echo "- $model" >> changelog.md
+              IFS=',' read -ra prop_array <<< "$props"
+              for prop in "${prop_array[@]}"; do
+                echo "  - $prop" >> changelog.md
+              done
+            done
+          else
+            echo "- None detected." >> changelog.md
+          fi
 
           echo "" >> changelog.md
           echo "### ✅ Approved By:" >> changelog.md

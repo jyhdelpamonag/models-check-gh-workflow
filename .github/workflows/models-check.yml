@@ -211,6 +211,8 @@ jobs:
             for model in $modified_models; do
               # Grab added lines only (+) but exclude diff metadata (+++), and filter lines that look like public auto-properties
               
+              echo "Checking added properties in modified model: $model"
+
               added_props=$(git diff origin/main -- "$model" | grep '^+' | grep -v '^\+\+\+' || true)
 
               echo "Added Properties: $added_props"

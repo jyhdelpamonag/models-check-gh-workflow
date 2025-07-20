@@ -309,7 +309,7 @@ jobs:
           echo "### ➕ Added Models with Properties:" >> changelog.md
           if [ -n "$ADDED_MODELS" ]; then
             while read -r model_path; do
-              model_name=$(basename "$model_path")
+              model_name=$(basename "$model_path" .cs)
               echo "- $model_name" >> changelog.md
 
               props=$(grep -E 'public\s+[^;{]+{[^}]*}' "$model_path" | sed -E 's/.*public[[:space:]]+[^ ]+[[:space:]]+([^ ]+)[[:space:]]*\{.*/  - \1/')
@@ -412,7 +412,7 @@ jobs:
           echo "### ➕ Added Models with Properties:" >> changelog.md
           if [ -n "$ADDED_MODELS" ]; then
             while read -r model_path; do
-              model_name=$(basename "$model_path")
+              model_name=$(basename "$model_path" .cs)
               echo "- $model_name" >> changelog.md
 
               props=$(grep -E 'public\s+[^;{]+{[^}]*}' "$model_path" | sed -E 's/.*public[[:space:]]+[^ ]+[[:space:]]+([^ ]+)[[:space:]]*\{.*/  - \1/')
@@ -450,7 +450,8 @@ jobs:
             for entry in "${models[@]}"; do
               model="${entry%%:*}"
               props="${entry#*:}"
-              echo "- $model" >> changelog.md
+              model_name=$(basename "$model" .cs)
+              echo "- $model_name" >> changelog.md
               IFS=',' read -ra prop_array <<< "$props"
               for prop in "${prop_array[@]}"; do
                 echo "  - $prop" >> changelog.md

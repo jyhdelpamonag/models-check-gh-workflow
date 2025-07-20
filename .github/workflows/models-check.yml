@@ -267,7 +267,7 @@ jobs:
   generate-changelog-no-breaking-changes:
     needs: detect-breaking-changes
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' && needs.detect-breaking-changes.outputs.breaking_changes_found == 'false' }}
+    if: ${{ github.event_name != 'workflow_dispatch' && needs.detect-breaking-changes.outputs.breaking_changes_found == 'false' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

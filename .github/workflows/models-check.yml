@@ -112,19 +112,79 @@ jobs:
 
           if [ -n "$modified_models" ]; then
             for model in $modified_models; do
-              # Get all added public properties
+              # Get the full diff with line prefixes
+              diff_lines=$(git diff origin/main --unified=0 -- "$model")
+
+              # Extract line numbers and lines for removed and added public properties
+              # We'll store removed line numbers and property names
+              declare -A removed_lines_map=()
+              declare -A added_lines_map=()
+
+              while IFS= read -r line; do
+                # Look for removed property lines with line number info
+                if [[ "$line" =~ ^@@\ \-([0-9]+),?[0-9]*\ \+([0-9]+),?[0-9]*\ @@ ]]; then
+                  # Parse hunk header to get line offsets
+                  removed_line_start=${BASH_REMATCH[1]}
+                  added_line_start=${BASH_REMATCH[2]}
+                elif [[ "$line" =~ ^\-(.*public[[:space:]]+[^ ]+[[:space:]]+([^ ]+)[[:space:]]*\{.*\}) ]]; then
+                  # This is a removed property line, store line number and property name
+                  prop_name="${BASH_REMATCH[2]}"
+                  removed_lines_map[$removed_line_start]="$prop_name"
+                  ((removed_line_start++))
+                elif [[ "$line" =~ ^\+(.*public[[:space:]]+[^ ]+[[:space:]]+([^ ]+)[[:space:]]*\{.*\}) ]]; then
+                  # This is an added property line, store line number and property name
+                  prop_name="${BASH_REMATCH[2]}"
+                  added_lines_map[$added_line_start]="$prop_name"
+                  ((added_line_start++))
+                elif [[ "$line" =~ ^[^+\-] ]]; then
+                  # Context line, increment both counters
+                  ((removed_line_start++))
+                  ((added_line_start++))
+                fi
+              done <<< "$diff_lines"
+
+              # Now find added properties that are immediately after removed properties (line numbers adjacent)
+              skip_props=""
+              for removed_line in "${!removed_lines_map[@]}"; do
+                added_line=$((removed_line + 1))
+                removed_prop="${removed_lines_map[$removed_line]}"
+                added_prop="${added_lines_map[$added_line]}"
+                if [ -n "$added_prop" ]; then
+                  # Mark this added property to skip (rename/modification candidate)
+                  skip_props+="$added_prop "
+                fi
+              done
+
+              # Get all added public properties normally (without line info)
               all_added_properties=$(git diff origin/main -- "$model" \
                 | grep '^\+' \
+                | grep -v '^\+\+\+' \
                 | grep -v '^\+\s*//' \
                 | grep -v '^\+\s*$' \
                 | grep -E 'public\s+[^;{]+{[^}]*}' || true)
 
-              if [ -n "$all_added_properties" ]; then
+              # Filter added properties skipping those in skip_props
+              filtered_added_properties=""
+              while IFS= read -r line; do
+                prop_name=$(echo "$line" | sed -E 's/.*public[[:space:]]+[^ ]+[[:space:]]+([^ ]+)[[:space:]]*\{.*/\1/')
+                skip=false
+                for sp in $skip_props; do
+                  if [[ "$prop_name" == "$sp" ]]; then
+                    skip=true
+                    break
+                  fi
+                done
+                if [ "$skip" = false ]; then
+                  filtered_added_properties+="$line"$'\n'
+                fi
+              done <<< "$all_added_properties"
+
+              if [ -n "$filtered_added_properties" ]; then
                 # Filter those NOT nullable and NOT having default value
-                breaking_props=$(echo "$all_added_properties" | grep -vE '\?\s*\w*\s*{|=\s*[^;]+;' || true)
+                breaking_props=$(echo "$filtered_added_properties" | grep -vE '\?\s*\w*\s*{|=\s*[^;]+;' || true)
 
                 # Those that are nullable or have default value (non-breaking)
-                non_breaking_props=$(echo "$all_added_properties" | grep -E '\?\s*\w*\s*{|=\s*[^;]+;' || true)
+                non_breaking_props=$(echo "$filtered_added_properties" | grep -E '\?\s*\w*\s*{|=\s*[^;]+;' || true)
 
                 if [ -n "$breaking_props" ]; then
                   breaking_properties+="\nIn $model:\n$breaking_props\n"
@@ -156,6 +216,7 @@ jobs:
           else
             echo "No modified models found."
           fi
+
 
       - name: Detect potential breaking changes in modified models with modified properties
         id: detect

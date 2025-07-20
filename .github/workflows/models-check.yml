@@ -277,25 +277,17 @@ jobs:
       - name: Breaking changes found in the models. Please review the changes before continuing.
         run: echo "Manual approval received, continuing workflow."
 
-  potential-breaking-changes-found-approved:
-    needs: potential-breaking-changes-found-bypass-approval
-    runs-on: ubuntu-latest
-    if: needs.potential-breaking-changes-found-bypass-approval.result == 'success'
-    steps:
-      - name: Breaking changes found and approved
-        run: echo "Breaking changes found and approved, workflow continues."
-
   generate-changelog-no-breaking-changes:
     needs: detect-breaking-changes
     runs-on: ubuntu-latest
-    if: needs.no-breaking-changes-found.result == 'success'
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.detect-breaking-changes.outputs.breaking_changes_found == 'false' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Generate changelog document for no breaking changes with summary
+      - name: Generate changelog document with added model properties
         env:
           ADDED_MODELS: ${{ needs.detect-breaking-changes.outputs.added_models }}
           ADDED_PROPERTIES_LIST: ${{ needs.detect-breaking-changes.outputs.added_properties_list }}
@@ -308,16 +300,25 @@ jobs:
 
           echo "## Model Changes Changelog (No Breaking Changes)" > changelog.md
           echo "" >> changelog.md
+
           echo "### Summary" >> changelog.md
           echo "- Models Added: $added_models_count" >> changelog.md
           echo "- Models Modified (Added Properties): $modified_models_count" >> changelog.md
           echo "" >> changelog.md
 
-          echo "### ➕ Added Models:" >> changelog.md
+          echo "### ➕ Added Models with Properties:" >> changelog.md
           if [ -n "$ADDED_MODELS" ]; then
-            echo "$ADDED_MODELS" | while read -r model; do
-              echo "- $(basename "$model")" >> changelog.md
-            done
+            while read -r model_path; do
+              model_name=$(basename "$model_path")
+              echo "- $model_name" >> changelog.md
+
+              props=$(grep -E 'public\s+[^;{]+{[^}]*}' "$model_path" | sed -E 's/.*public\s+[^ ]+\s+([^ ]+)\s*{.*/  - \1/')
+              if [ -n "$props" ]; then
+                echo "$props" >> changelog.md
+              else
+                echo "  - (No properties found)" >> changelog.md
+              fi
+            done <<< "$ADDED_MODELS"
           else
             echo "- None" >> changelog.md
           fi
@@ -372,16 +373,16 @@ jobs:
 
 
   generate-changelog-with-potential-breaking-changes:
-    needs: [potential-breaking-changes-found-approved, detect-breaking-changes]
+    needs: [detect-breaking-changes, potential-breaking-changes-found-bypass-approval]
     runs-on: ubuntu-latest
-    if: needs.potential-breaking-changes-found-approved.result == 'success'
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.potential-breaking-changes-found-bypass-approval.result == 'success' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Generate changelog document with breaking change details and summary
+      - name: Generate changelog document with breaking change details and added model properties
         env:
           BREAKING_CHANGES_LIST: ${{ needs.detect-breaking-changes.outputs.breaking_changes_list }}
           ADDED_MODELS: ${{ needs.detect-breaking-changes.outputs.added_models }}
@@ -401,17 +402,26 @@ jobs:
 
           echo "## Model Changes Changelog (Breaking Changes Approved)" > changelog.md
           echo "" >> changelog.md
+
           echo "### Summary" >> changelog.md
           echo "- Models Added: $added_models_count" >> changelog.md
           echo "- Models Modified (Added Properties): $modified_models_count" >> changelog.md
           echo "- Models with Breaking Changes: $breaking_models_count" >> changelog.md
           echo "" >> changelog.md
 
-          echo "### ➕ Added Models:" >> changelog.md
+          echo "### ➕ Added Models with Properties:" >> changelog.md
           if [ -n "$ADDED_MODELS" ]; then
-            echo "$ADDED_MODELS" | while read -r model; do
-              echo "- $(basename "$model")" >> changelog.md
-            done
+            while read -r model_path; do
+              model_name=$(basename "$model_path")
+              echo "- $model_name" >> changelog.md
+
+              props=$(grep -E 'public\s+[^;{]+{[^}]*}' "$model_path" | sed -E 's/.*public\s+[^ ]+\s+([^ ]+)\s*{.*/  - \1/')
+              if [ -n "$props" ]; then
+                echo "$props" >> changelog.md
+              else
+                echo "  - (No properties found)" >> changelog.md
+              fi
+            done <<< "$ADDED_MODELS"
           else
             echo "- None" >> changelog.md
           fi
@@ -480,4 +490,3 @@ jobs:
             } else {
               core.warning('changelog.md not found, skipping PR comment.');
             }
-

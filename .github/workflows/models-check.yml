@@ -174,16 +174,13 @@ jobs:
             echo "No models have modified or deleted properties."
           fi
 
-          # Export output flag for GitHub Actions
-          echo "breaking_changes_found=$breaking_changes_found" >> $GITHUB_OUTPUT
-
-          # Optional: export the list as a string if you want to use in other steps
-          # Format: ModelName:Prop1,Prop2;AnotherModel:PropX
           breaking_list=""
           for model in "${!breaking_changes[@]}"; do
             props_csv=$(echo "${breaking_changes[$model]}" | tr ' ' ',')
             breaking_list+="${model}:${props_csv};"
           done
+
+          echo "breaking_changes_found=$breaking_changes_found" >> $GITHUB_OUTPUT
           echo "breaking_changes_list=$breaking_list" >> $GITHUB_OUTPUT
 
   
@@ -256,16 +253,6 @@ jobs:
             added_props_list+="${model}:${props_csv};"
           done
           echo "added_properties_list=$added_props_list" >> $GITHUB_OUTPUT
-  
-  no-approval-needed-for-manual:
-    needs: detect-breaking-changes
-    runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' && needs.detect-breaking-changes.outputs.breaking_changes_found == 'true' }}
-    steps:
-      - name: Fail immediately on breaking changes when manually triggered
-        run: |
-          echo "Breaking changes detected. Manual approval is skipped on workflow_dispatch trigger."
-          exit 1
 
   potential-breaking-changes-found-bypass-approval:
     needs: detect-breaking-changes

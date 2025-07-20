@@ -207,20 +207,19 @@ jobs:
 
           declare -A added_props_map
 
-          # For each modified model, extract added properties (added public properties)
           if [ -n "$modified_models" ]; then
             for model in $modified_models; do
+              # Grab added lines only (+) but exclude diff metadata (+++), and filter lines that look like public auto-properties
               added_props=$(git diff origin/main -- "$model" \
                 | grep '^+' \
                 | grep -v '^\+\+\+' \
-                | grep -v '^\+\s*//' \
-                | grep -v '^\+\s*$' \
-                | grep -E '^\+\s*public\s+[^ ]+\??\s+[^ ]+\s*{[^}]*}' || true)
+                | grep -E '^\+\s*public\s+[^ ]+(\??)\s+[^ ]+\s*{ get; set; }' || true)
 
               if [ -n "$added_props" ]; then
                 props=()
                 while IFS= read -r line; do
-                  prop_name=$(echo "$line" | sed -E 's/^\+\s*public\s+[^ ]+\??\s+([^ ]+).*/\1/')
+                  # Extract property name: match after type and optional nullable ? until space before { get; set; }
+                  prop_name=$(echo "$line" | sed -E 's/^\+\s*public\s+[^ ]+\??\s+([^ ]+)\s*{ get; set; }.*/\1/')
                   props+=("$prop_name")
                 done <<< "$added_props"
 

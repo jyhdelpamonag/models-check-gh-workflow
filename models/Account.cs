@@ -5,4 +5,5 @@ public class Account {
     public DateTime CreatedAt { get; set; }
     public bool IsActive { get; set; }
     public string? Email { get; set; }
+    public string? PhoneNumber { get; set; }
 }

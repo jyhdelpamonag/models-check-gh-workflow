@@ -211,16 +211,16 @@ jobs:
           if [ -n "$modified_models" ]; then
             for model in $modified_models; do
               added_props=$(git diff origin/main -- "$model" \
-              | grep '^+' \
-              | grep -v '^\+\+\+' \
-              | grep -v '^\+\s*//' \
-              | grep -v '^\+\s*$' \
-              | grep -E '^\+\s*public[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]+]+[[:space:]]*{.*}' || true)
+                | grep '^+' \
+                | grep -v '^\+\+\+' \
+                | grep -v '^\+\s*//' \
+                | grep -v '^\+\s*$' \
+                | grep -E '^\+\s*public\s+[^ ]+\??\s+[^ ]+\s*{[^}]*}' || true)
 
               if [ -n "$added_props" ]; then
                 props=()
                 while IFS= read -r line; do
-                  prop_name=$(echo "$line" | sed -E 's/^\+\s*public [^ ]+ ([^ ]+) .*$/\1/')
+                  prop_name=$(echo "$line" | sed -E 's/^\+\s*public\s+[^ ]+\??\s+([^ ]+).*/\1/')
                   props+=("$prop_name")
                 done <<< "$added_props"
 

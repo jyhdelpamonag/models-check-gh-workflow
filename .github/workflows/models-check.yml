@@ -105,6 +105,7 @@ jobs:
           echo "Checking for modified models and added properties..."
 
           modified_models=$(git diff --name-only --diff-filter=M origin/main -- models | grep -E '\.cs$' || true)
+
           breaking_properties=""
           non_breaking_properties=""
 
@@ -128,7 +129,8 @@ jobs:
                   breaking_properties+="\nIn $model:\n$breaking_props\n"
                 fi
                 if [ -n "$non_breaking_props" ]; then
-                  non_breaking_properties+="\nIn $model:\n$non_breaking_props\n"
+                  props=$(echo "$non_breaking_props" | sed -E 's/.*public[[:space:]]+[^ ]+[[:space:]]+([^ ]+)[[:space:]]*\{.*/\1/' | tr '\n' ',' | sed 's/,$//')
+                  non_breaking_properties+="$model:$props;"
                 fi
               fi
             done
@@ -137,7 +139,7 @@ jobs:
               echo -e "The following added properties are nullable or have default values (non-breaking):"
               echo -e "$non_breaking_properties"
 
-              echo "added_properties_list=$non_breaking_properties" >> $GITHUB_OUTPUT
+              echo "added_properties_list=${non_breaking_properties%;}" >> $GITHUB_OUTPUT
             else
               echo "No nullable or default value added properties found."
             fi

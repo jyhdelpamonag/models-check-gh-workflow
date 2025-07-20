@@ -253,6 +253,10 @@ jobs:
           ADDED_MODELS: ${{ needs.detect-breaking-changes.outputs.added_models }}
           ADDED_PROPERTIES_LIST: ${{ needs.detect-breaking-changes.outputs.added_properties_list }}
         run: |
+          echo "Generating changelog document with added model properties..."
+          echo "Added Models: $ADDED_MODELS"
+          echo "Added Properties List: $ADDED_PROPERTIES_LIST"
+
           added_models_count=$(echo "$ADDED_MODELS" | grep -cve '^\s*$' || echo 0)
           modified_models_count=0
           if [ -n "$ADDED_PROPERTIES_LIST" ]; then

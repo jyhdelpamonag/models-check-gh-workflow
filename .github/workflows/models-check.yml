@@ -312,7 +312,7 @@ jobs:
               model_name=$(basename "$model_path")
               echo "- $model_name" >> changelog.md
 
-              props=$(grep -E 'public\s+[^;{]+{[^}]*}' "$model_path" | sed -E 's/.*public\s+[^ ]+\s+([^ ]+)\s*{.*/  - \1/')
+              props=$(grep -E 'public\s+[^;{]+{[^}]*}' "$model_path" | sed -E 's/.*public[[:space:]]+[^ ]+[[:space:]]+([^ ]+)[[:space:]]*\{.*/  - \1/')
               if [ -n "$props" ]; then
                 echo "$props" >> changelog.md
               else
@@ -415,7 +415,7 @@ jobs:
               model_name=$(basename "$model_path")
               echo "- $model_name" >> changelog.md
 
-              props=$(grep -E 'public\s+[^;{]+{[^}]*}' "$model_path" | sed -E 's/.*public\s+[^ ]+\s+([^ ]+)\s*{.*/  - \1/')
+              props=$(grep -E 'public\s+[^;{]+{[^}]*}' "$model_path" | sed -E 's/.*public[[:space:]]+[^ ]+[[:space:]]+([^ ]+)[[:space:]]*\{.*/  - \1/')
               if [ -n "$props" ]; then
                 echo "$props" >> changelog.md
               else

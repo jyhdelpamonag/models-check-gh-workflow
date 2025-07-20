@@ -139,8 +139,6 @@ jobs:
 
           if [ -n "$modified_models" ]; then
             for model in $modified_models; do
-              # Get removed or modified property lines (simplified to typical C# auto-properties or properties)
-              # Property lines typically contain accessors like { get; set; }, and exclude comments and other code
               prop_lines=$(git diff origin/main -- "$model" | grep '^-' | grep -v '^---' | grep -v '^-\s*//' | grep -v '^\s*$' | grep -E '^\s*-\s*public .* { get; set; }' || true)
 
               if [ -n "$prop_lines" ]; then
@@ -213,11 +211,11 @@ jobs:
           if [ -n "$modified_models" ]; then
             for model in $modified_models; do
               added_props=$(git diff origin/main -- "$model" \
-                | grep '^+' \
-                | grep -v '^\+\+\+' \
-                | grep -v '^\+\s*//' \
-                | grep -v '^\+\s*$' \
-                | grep -E '^\+\s*public .* { get; set; }' || true)
+              | grep '^+' \
+              | grep -v '^\+\+\+' \
+              | grep -v '^\+\s*//' \
+              | grep -v '^\+\s*$' \
+              | grep -E '^\+\s*public[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]+]+[[:space:]]*{.*}' || true)
 
               if [ -n "$added_props" ]; then
                 props=()

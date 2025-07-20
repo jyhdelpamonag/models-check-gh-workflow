@@ -375,7 +375,7 @@ jobs:
   generate-changelog-with-potential-breaking-changes:
     needs: [detect-breaking-changes, potential-breaking-changes-found-bypass-approval]
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' && needs.potential-breaking-changes-found-bypass-approval.result == 'success' }}
+    if: ${{ needs.potential-breaking-changes-found-bypass-approval.result == 'success' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

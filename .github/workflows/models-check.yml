@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       breaking_changes_found: ${{ steps.detect.outputs.breaking_changes_found }}
-      added_models: ${{ steps.gather.outputs.added_models }}
+      added_models: ${{ steps.added-models.outputs.added_models_list }}
       added_properties_list: ${{ steps.added-properties.outputs.added_properties_list }}
       breaking_changes_list: ${{ steps.detect.outputs.breaking_changes_list }}
     steps:
@@ -131,7 +131,8 @@ jobs:
                 fi
                 if [ -n "$non_breaking_props" ]; then
                   props=$(echo "$non_breaking_props" | sed -E 's/.*public[[:space:]]+[^ ]+[[:space:]]+([^ ]+)[[:space:]]*\{.*/\1/' | tr '\n' ',' | sed 's/,$//')
-                  non_breaking_properties+="$model:$props;"
+                  model_name=$(basename "$model" .cs)
+                  non_breaking_properties+="$model_name:$props;"
                 fi
               fi
             done
@@ -213,7 +214,7 @@ jobs:
 
   
       - name: Gather all added models and added properties on modified models and save it on a list
-        id: gather
+        id: added-models
         run: |
           echo "Gathering added models and properties..."
 
@@ -227,7 +228,7 @@ jobs:
           fi
 
           # Export outputs
-          echo "added_models=$added_models" >> $GITHUB_OUTPUT
+          echo "added_models_list=$added_models" >> $GITHUB_OUTPUT
 
   potential-breaking-changes-found-bypass-approval:
     needs: detect-breaking-changes

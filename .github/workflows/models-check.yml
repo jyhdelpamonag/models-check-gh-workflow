@@ -99,9 +99,11 @@ jobs:
           else
             echo "No models were renamed."
           fi
-
+        
       - name: Check for modified models and check the added properties. Fail if not nullable or have default value
         run: |
+          echo "Checking for modified models and added properties..."
+
           modified_models=$(git diff --name-only --diff-filter=M origin/main -- models | grep -E '\.cs$' || true)
           breaking_properties=""
           non_breaking_properties=""
@@ -117,7 +119,7 @@ jobs:
 
               if [ -n "$all_added_properties" ]; then
                 # Filter those NOT nullable and NOT having default value
-                breaking_props=$(echo "$all_added_properties" | grep -vE '\?\s*\w*\s*{|=\s*[^;]+;')
+                breaking_props=$(echo "$all_added_properties" | grep -vE '\?\s*\w*\s*{|=\s*[^;]+;' || true)
 
                 # Those that are nullable or have default value (non-breaking)
                 non_breaking_props=$(echo "$all_added_properties" | grep -E '\?\s*\w*\s*{|=\s*[^;]+;' || true)
@@ -131,19 +133,19 @@ jobs:
               fi
             done
 
+            if [ -n "$non_breaking_properties" ]; then
+              echo -e "The following added properties are nullable or have default values (non-breaking):"
+              echo -e "$non_breaking_properties"
+            else
+              echo "No nullable or default value added properties found."
+            fi
+
             if [ -n "$breaking_properties" ]; then
               echo -e "BREAKING CHANGE: The following properties were added without being nullable or having a default value:"
               echo -e "$breaking_properties"
               exit 1
             else
               echo "No added properties without nullable/default value found."
-            fi
-
-            if [ -n "$non_breaking_properties" ]; then
-              echo -e "The following added properties are nullable or have default values (non-breaking):"
-              echo -e "$non_breaking_properties"
-            else
-              echo "No nullable or default value added properties found."
             fi
           else
             echo "No modified models found."

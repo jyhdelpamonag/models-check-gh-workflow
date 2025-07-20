@@ -141,6 +141,8 @@ jobs:
             for model in $modified_models; do
               prop_lines=$(git diff origin/main -- "$model" | grep '^-' | grep -v '^---' | grep -v '^-\s*//' | grep -v '^\s*$' | grep -E '^\s*-\s*public .* { get; set; }' || true)
 
+              echo "$prop_lines" 
+
               if [ -n "$prop_lines" ]; then
                 model_name=$(basename "$model")
                 # Extract property names from those lines

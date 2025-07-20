@@ -21,6 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       breaking_changes_found: ${{ steps.detect.outputs.breaking_changes_found }}
+      added_models: ${{ steps.gather.outputs.added_models }}
       added_properties_list: ${{ steps.gather.outputs.added_properties_list }}
       breaking_changes_list: ${{ steps.detect.outputs.breaking_changes_list }}
     steps:
@@ -287,24 +288,39 @@ jobs:
   generate-changelog-no-breaking-changes:
     needs: detect-breaking-changes
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'workflow_dispatch' && needs.detect-breaking-changes.outputs.breaking_changes_found == 'false' }}
+    if: needs.no-breaking-changes-found.result == 'success'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Generate changelog document for no breaking changes
+      - name: Generate changelog document for no breaking changes with summary
         env:
+          ADDED_MODELS: ${{ needs.detect-breaking-changes.outputs.added_models }}
           ADDED_PROPERTIES_LIST: ${{ needs.detect-breaking-changes.outputs.added_properties_list }}
         run: |
+          added_models_count=$(echo "$ADDED_MODELS" | grep -cve '^\s*$' || echo 0)
+          modified_models_count=0
+          if [ -n "$ADDED_PROPERTIES_LIST" ]; then
+            modified_models_count=$(echo "$ADDED_PROPERTIES_LIST" | awk -F';' '{print NF-1}')
+          fi
+
           echo "## Model Changes Changelog (No Breaking Changes)" > changelog.md
           echo "" >> changelog.md
-          echo "Changes between origin/main and HEAD:" >> changelog.md
-          git diff --stat origin/main -- models >> changelog.md
+          echo "### Summary" >> changelog.md
+          echo "- Models Added: $added_models_count" >> changelog.md
+          echo "- Models Modified (Added Properties): $modified_models_count" >> changelog.md
           echo "" >> changelog.md
-          echo "Detailed changes:" >> changelog.md
-          git diff origin/main -- models >> changelog.md
+
+          echo "### ➕ Added Models:" >> changelog.md
+          if [ -n "$ADDED_MODELS" ]; then
+            echo "$ADDED_MODELS" | while read -r model; do
+              echo "- $(basename "$model")" >> changelog.md
+            done
+          else
+            echo "- None" >> changelog.md
+          fi
 
           echo "" >> changelog.md
           echo "### ➕ Added Properties in Modified Models:" >> changelog.md
@@ -365,23 +381,45 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Generate changelog document with breaking change details
+      - name: Generate changelog document with breaking change details and summary
         env:
           BREAKING_CHANGES_LIST: ${{ needs.detect-breaking-changes.outputs.breaking_changes_list }}
+          ADDED_MODELS: ${{ needs.detect-breaking-changes.outputs.added_models }}
           ADDED_PROPERTIES_LIST: ${{ needs.detect-breaking-changes.outputs.added_properties_list }}
         run: |
+          added_models_count=$(echo "$ADDED_MODELS" | grep -cve '^\s*$' || echo 0)
+          modified_models_count=0
+          breaking_models_count=0
+
+          if [ -n "$ADDED_PROPERTIES_LIST" ]; then
+            modified_models_count=$(echo "$ADDED_PROPERTIES_LIST" | awk -F';' '{print NF-1}')
+          fi
+
+          if [ -n "$BREAKING_CHANGES_LIST" ]; then
+            breaking_models_count=$(echo "$BREAKING_CHANGES_LIST" | awk -F';' '{print NF-1}')
+          fi
+
           echo "## Model Changes Changelog (Breaking Changes Approved)" > changelog.md
           echo "" >> changelog.md
-          echo "Changes between origin/main and HEAD:" >> changelog.md
-          git diff --stat origin/main -- models >> changelog.md
+          echo "### Summary" >> changelog.md
+          echo "- Models Added: $added_models_count" >> changelog.md
+          echo "- Models Modified (Added Properties): $modified_models_count" >> changelog.md
+          echo "- Models with Breaking Changes: $breaking_models_count" >> changelog.md
           echo "" >> changelog.md
-          echo "Detailed changes:" >> changelog.md
-          git diff origin/main -- models >> changelog.md
+
+          echo "### ➕ Added Models:" >> changelog.md
+          if [ -n "$ADDED_MODELS" ]; then
+            echo "$ADDED_MODELS" | while read -r model; do
+              echo "- $(basename "$model")" >> changelog.md
+            done
+          else
+            echo "- None" >> changelog.md
+          fi
 
           echo "" >> changelog.md
-          echo "### ⚠️ Breaking Changes Detected:" >> changelog.md
-          if [ -n "$BREAKING_CHANGES_LIST" ]; then
-            IFS=';' read -ra models <<< "$BREAKING_CHANGES_LIST"
+          echo "### ➕ Added Properties in Modified Models:" >> changelog.md
+          if [ -n "$ADDED_PROPERTIES_LIST" ]; then
+            IFS=';' read -ra models <<< "$ADDED_PROPERTIES_LIST"
             for entry in "${models[@]}"; do
               model="${entry%%:*}"
               props="${entry#*:}"
@@ -392,13 +430,13 @@ jobs:
               done
             done
           else
-            echo "- None detected." >> changelog.md
+            echo "- None" >> changelog.md
           fi
 
           echo "" >> changelog.md
-          echo "### ➕ Added Properties:" >> changelog.md
-          if [ -n "$ADDED_PROPERTIES_LIST" ]; then
-            IFS=';' read -ra models <<< "$ADDED_PROPERTIES_LIST"
+          echo "### ⚠️ Breaking Changes Detected:" >> changelog.md
+          if [ -n "$BREAKING_CHANGES_LIST" ]; then
+            IFS=';' read -ra models <<< "$BREAKING_CHANGES_LIST"
             for entry in "${models[@]}"; do
               model="${entry%%:*}"
               props="${entry#*:}"
@@ -442,3 +480,4 @@ jobs:
             } else {
               core.warning('changelog.md not found, skipping PR comment.');
             }
+

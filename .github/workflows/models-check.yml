@@ -242,14 +242,19 @@ jobs:
 
           # Export outputs
           echo "added_models=$added_models" >> $GITHUB_OUTPUT
-          echo "added_properties=$modified_models" >> $GITHUB_OUTPUT
+
+          # Removed the incorrect output line here
+          # echo "added_properties=$modified_models" >> $GITHUB_OUTPUT
 
           added_props_list=""
           for model in "${!added_props_map[@]}"; do
             props_csv=$(echo "${added_props_map[$model]}" | tr ' ' ',')
             added_props_list+="${model}:${props_csv};"
           done
+
+          echo "DEBUG: added_props_list=$added_props_list"
           echo "added_properties_list=$added_props_list" >> $GITHUB_OUTPUT
+
 
   potential-breaking-changes-found-bypass-approval:
     needs: detect-breaking-changes

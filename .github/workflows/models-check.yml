@@ -262,7 +262,7 @@ jobs:
           added_models_count=$(echo "$ADDED_MODELS" | grep -cve '^\s*$' || echo 0)
           modified_models_count=0
           if [ -n "$ADDED_PROPERTIES_LIST" ]; then
-            modified_models_count=$(echo "$ADDED_PROPERTIES_LIST" | awk -F';' '{print NF-1}')
+            modified_models_count=$(echo "$ADDED_PROPERTIES_LIST" | tr ';' '\n' | grep -cve '^\s*$' || echo 0)
           fi
 
           echo "## Model Changes Changelog (No Breaking Changes)" > changelog.md

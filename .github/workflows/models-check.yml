@@ -99,30 +99,51 @@ jobs:
           else
             echo "No models were renamed."
           fi
-        
+
       - name: Check for modified models and check the added properties. Fail if not nullable or have default value
         run: |
           modified_models=$(git diff --name-only --diff-filter=M origin/main -- models | grep -E '\.cs$' || true)
-          all_errors=""
+          breaking_properties=""
+          non_breaking_properties=""
+
           if [ -n "$modified_models" ]; then
             for model in $modified_models; do
-              added_properties=$(git diff origin/main -- "$model" \
+              # Get all added public properties
+              all_added_properties=$(git diff origin/main -- "$model" \
                 | grep '^\+' \
                 | grep -v '^\+\s*//' \
                 | grep -v '^\+\s*$' \
-                | grep -E 'public\s+[^;{]+{[^}]*}' \
-                | grep -vE '\?\s*\w*\s*{|=\s*[^;]+;' || true)
-              if [ -n "$added_properties" ]; then
-                all_errors+="\nIn $model:\n$added_properties\n"
+                | grep -E 'public\s+[^;{]+{[^}]*}' || true)
+
+              if [ -n "$all_added_properties" ]; then
+                # Filter those NOT nullable and NOT having default value
+                breaking_props=$(echo "$all_added_properties" | grep -vE '\?\s*\w*\s*{|=\s*[^;]+;')
+
+                # Those that are nullable or have default value (non-breaking)
+                non_breaking_props=$(echo "$all_added_properties" | grep -E '\?\s*\w*\s*{|=\s*[^;]+;' || true)
+
+                if [ -n "$breaking_props" ]; then
+                  breaking_properties+="\nIn $model:\n$breaking_props\n"
+                fi
+                if [ -n "$non_breaking_props" ]; then
+                  non_breaking_properties+="\nIn $model:\n$non_breaking_props\n"
+                fi
               fi
             done
 
-            if [ -n "$all_errors" ]; then
+            if [ -n "$breaking_properties" ]; then
               echo -e "BREAKING CHANGE: The following properties were added without being nullable or having a default value:"
-              echo -e "$all_errors"
+              echo -e "$breaking_properties"
               exit 1
             else
               echo "No added properties without nullable/default value found."
+            fi
+
+            if [ -n "$non_breaking_properties" ]; then
+              echo -e "The following added properties are nullable or have default values (non-breaking):"
+              echo -e "$non_breaking_properties"
+            else
+              echo "No nullable or default value added properties found."
             fi
           else
             echo "No modified models found."

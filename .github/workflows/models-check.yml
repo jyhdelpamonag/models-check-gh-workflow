@@ -189,7 +189,7 @@ jobs:
 
           # Get added and modified model files
           added_models=$(git diff --name-only --diff-filter=A origin/main -- models | grep -E '\.cs$' || true)
-          modified_models=$(git diff --name-only origin/main -- models | grep -E '\.cs$' || true)
+          modified_models=$(git diff --name-only --diff-filter=M origin/main -- models | grep -E '\.cs$' || true)
 
           echo "Added models:"
           if [ -n "$added_models" ]; then
@@ -208,12 +208,10 @@ jobs:
           declare -A added_props_map
 
           if [ -n "$modified_models" ]; then
-            for model in $modified_models; do
-              # Grab added lines only (+) but exclude diff metadata (+++), and filter lines that look like public auto-properties
-              
+            for model in $modified_models; do              
               echo "Checking added properties in modified model: $model"
 
-              added_props=$(git diff origin/main -- "$model" | grep '^+' | grep -v '^\+\+\+' || true)
+              added_props=$(git diff origin/main -- "$model" | grep '^+' | grep -v '^\+\+\+' | grep -E '^\s*+\s*public .* { get; set; }' || true)
 
               echo "Added Properties: $added_props"
 

@@ -1,44 +1,41 @@
-- name: Get models with only deleted properties
-  id: deleted-only-models
-  if: ${{ steps.modified-models.outputs.models != '' }}
-  run: |
-    echo "Checking which modified models only contain deleted properties..."
+type_changed_list=""
+current_model=""
+changes_block=""
 
-    deleted_details=""
-    deleted_only_models=""
+for file in ${{ steps.modified-models.outputs.models }}; do
+  model_name=$(basename "$file" .cs)
 
-    while read -r file; do
-      echo "Processing $file"
+  old_props=$(git show origin/development:"$file" | grep -E '^\s*public\s+(required\s+)?\w+\s+\w+\s*{' || true)
+  new_props=$(cat "$file" | grep -E '^\s*public\s+(required\s+)?\w+\s+\w+\s*{' || true)
 
-      # Get deleted property lines
-      deleted_props=$(git diff origin/development -- "$file" \
-        | grep '^-' \
-        | grep -v '^---' \
-        | grep -E 'public\s+[^;{]+{[^}]*}' || true)
+  while IFS= read -r old_line; do
+    old_type=$(echo "$old_line" | sed -E 's/^\s*public\s+(required\s+)?(\w+)\s+(\w+).*/\2/')
+    old_name=$(echo "$old_line" | sed -E 's/^\s*public\s+(required\s+)?(\w+)\s+(\w+).*/\3/')
+    new_line=$(echo "$new_props" | grep -E "\b$old_name\b" || true)
 
-      # Get added property lines
-      added_props=$(git diff origin/development -- "$file" \
-        | grep '^+' \
-        | grep -v '^\+\+\+' \
-        | grep -v '^+\s*//' \
-        | grep -E 'public\s+[^;{]+{[^}]*}' || true)
-
-      if [ -n "$deleted_props" ] && [ -z "$added_props" ]; then
-        model_name=$(basename "$file" .cs)
-        deleted_only_models+="$model_name;"
-        
-        # Format deleted properties like "- PropertyName (Type)"
-        formatted_props=$(echo "$deleted_props" | sed -E 's/^\-\s*//' \
-          | sed -E 's/.*public\s+([^ ]+)\s+([^ ]+).*/- \2 (\1)/')
-
-        deleted_details+="$model_name:\n$formatted_props\n\n"
+    if [ -n "$new_line" ]; then
+      new_type=$(echo "$new_line" | sed -E 's/^\s*public\s+(required\s+)?(\w+)\s+(\w+).*/\2/')
+      if [ "$old_type" != "$new_type" ]; then
+        if [ "$current_model" != "$model_name" ]; then
+          # flush previous block if switching model
+          if [ -n "$changes_block" ]; then
+            type_changed_list+="$changes_block\n"
+          fi
+          changes_block="- $model_name\n"
+          current_model="$model_name"
+        fi
+        changes_block+="  - $old_name: $old_type → $new_type\n"
       fi
-    done <<< "${{ steps.modified-models.outputs.models }}"
+    fi
+  done <<< "$old_props"
+done
 
-    # Export outputs
-    echo "deleted_only_models=${deleted_only_models}" >> $GITHUB_OUTPUT
+# flush last block
+if [ -n "$changes_block" ]; then
+  type_changed_list+="$changes_block\n"
+fi
 
-    # Export grouped deleted details
-    echo "deleted_details<<EOF" >> $GITHUB_OUTPUT
-    echo -e "$deleted_details" >> $GITHUB_OUTPUT
-    echo "EOF" >> $GITHUB_OUTPUT
+# Export
+echo "type_changed_properties_list<<EOF" >> $GITHUB_OUTPUT
+echo -e "$type_changed_list" >> $GITHUB_OUTPUT
+echo "EOF" >> $GITHUB_OUTPUT

@@ -1,0 +1,42 @@
+- name: Detect breaking changes in modified models
+  id: breaking-modified-models
+  run: |
+    breaking_models=""
+    
+    for file in ${{ steps.all-modified-models.outputs.models }}; do
+      # Get property lines before and after
+      old_props=$(git show origin/main:"$file" | grep -E '^\s*public\s+(required\s+)?\w+\s+\w+\s*\{' || true)
+      new_props=$(cat "$file" | grep -E '^\s*public\s+(required\s+)?\w+\s+\w+\s*\{' || true)
+
+      # Compare all old props to new props
+      deleted_props=$(comm -23 <(echo "$old_props" | sort) <(echo "$new_props" | sort))
+      added_props=$(comm -13 <(echo "$old_props" | sort) <(echo "$new_props" | sort))
+
+      # Check if any added props are required
+      breaking_required=$(echo "$added_props" | grep -E '^\s*public\s+required\s+' || true)
+
+      # Check for type changes by comparing matching property names with different types
+      for old_line in $old_props; do
+        old_type=$(echo "$old_line" | sed -E 's/^\s*public\s+(required\s+)?(\w+)\s+(\w+)\s*\{.*/\2/')
+        old_name=$(echo "$old_line" | sed -E 's/^\s*public\s+(required\s+)?(\w+)\s+(\w+)\s*\{.*/\3/')
+
+        new_line=$(echo "$new_props" | grep -E "\b$old_name\b" || true)
+        if [ -n "$new_line" ]; then
+          new_type=$(echo "$new_line" | sed -E 's/^\s*public\s+(required\s+)?(\w+)\s+(\w+)\s*\{.*/\2/')
+          if [ "$old_type" != "$new_type" ]; then
+            echo "Type change for $old_name in $file: $old_type -> $new_type"
+            breaking_models+="$file"$'\n'
+            break
+          fi
+        fi
+      done
+
+      # Add file if breaking changes are found
+      if [ -n "$deleted_props" ] || [ -n "$breaking_required" ]; then
+        breaking_models+="$file"$'\n'
+      fi
+    done
+
+    echo "Breaking model changes detected:"
+    echo "$breaking_models"
+    echo "models=$breaking_models" >> "$GITHUB_OUTPUT"

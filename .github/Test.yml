@@ -1,48 +1,44 @@
-- name: Detect breaking changes in modified models
-  id: detect-breaking
+- name: Get models with only deleted properties
+  id: deleted-only-models
+  if: ${{ steps.modified-models.outputs.models != '' }}
   run: |
-    deleted_list=""
-    type_changed_list=""
-    required_added_list=""
-    
-    for file in ${{ steps.all-modified-models.outputs.models }}; do
-      model_name=$(basename "$file" .cs)
+    echo "Checking which modified models only contain deleted properties..."
 
-      old_props=$(git show origin/main:"$file" | grep -E '^\s*public\s+(required\s+)?\w+\s+\w+\s*\{' || true)
-      new_props=$(cat "$file" | grep -E '^\s*public\s+(required\s+)?\w+\s+\w+\s*\{' || true)
+    deleted_details=""
+    deleted_only_models=""
 
-      # Deleted properties
-      deleted=$(comm -23 <(echo "$old_props" | sort) <(echo "$new_props" | sort))
-      while IFS= read -r line; do
-        [[ -z "$line" ]] && continue
-        type=$(echo "$line" | sed -E 's/^\s*public\s+(required\s+)?(\w+)\s+(\w+).*/\2/')
-        name=$(echo "$line" | sed -E 's/^\s*public\s+(required\s+)?(\w+)\s+(\w+).*/\3/')
-        deleted_list+="$model_name:$name($type);"
-      done <<< "$deleted"
+    while read -r file; do
+      echo "Processing $file"
 
-      # Required added properties
-      required_added=$(echo "$new_props" | grep -E '^\s*public\s+required\s+' || true)
-      while IFS= read -r line; do
-        [[ -z "$line" ]] && continue
-        type=$(echo "$line" | sed -E 's/^\s*public\s+required\s+(\w+)\s+(\w+).*/\1/')
-        name=$(echo "$line" | sed -E 's/^\s*public\s+required\s+(\w+)\s+(\w+).*/\2/')
-        required_added_list+="$model_name:$name($type);"
-      done <<< "$required_added"
+      # Get deleted property lines
+      deleted_props=$(git diff origin/development -- "$file" \
+        | grep '^-' \
+        | grep -v '^---' \
+        | grep -E 'public\s+[^;{]+{[^}]*}' || true)
 
-      # Type changes
-      while IFS= read -r old_line; do
-        old_type=$(echo "$old_line" | sed -E 's/^\s*public\s+(required\s+)?(\w+)\s+(\w+).*/\2/')
-        old_name=$(echo "$old_line" | sed -E 's/^\s*public\s+(required\s+)?(\w+)\s+(\w+).*/\3/')
-        new_line=$(echo "$new_props" | grep -E "\b$old_name\b" || true)
-        if [ -n "$new_line" ]; then
-          new_type=$(echo "$new_line" | sed -E 's/^\s*public\s+(required\s+)?(\w+)\s+(\w+).*/\2/')
-          if [ "$old_type" != "$new_type" ]; then
-            type_changed_list+="$model_name:$old_name($old_type → $new_type);"
-          fi
-        fi
-      done <<< "$old_props"
-    done
+      # Get added property lines
+      added_props=$(git diff origin/development -- "$file" \
+        | grep '^+' \
+        | grep -v '^\+\+\+' \
+        | grep -v '^+\s*//' \
+        | grep -E 'public\s+[^;{]+{[^}]*}' || true)
 
-    echo "deleted_properties_list=$deleted_list" >> "$GITHUB_OUTPUT"
-    echo "type_changed_properties_list=$type_changed_list" >> "$GITHUB_OUTPUT"
-    echo "required_added_properties_list=$required_added_list" >> "$GITHUB_OUTPUT"
+      if [ -n "$deleted_props" ] && [ -z "$added_props" ]; then
+        model_name=$(basename "$file" .cs)
+        deleted_only_models+="$model_name;"
+        
+        # Format deleted properties like "- PropertyName (Type)"
+        formatted_props=$(echo "$deleted_props" | sed -E 's/^\-\s*//' \
+          | sed -E 's/.*public\s+([^ ]+)\s+([^ ]+).*/- \2 (\1)/')
+
+        deleted_details+="$model_name:\n$formatted_props\n\n"
+      fi
+    done <<< "${{ steps.modified-models.outputs.models }}"
+
+    # Export outputs
+    echo "deleted_only_models=${deleted_only_models}" >> $GITHUB_OUTPUT
+
+    # Export grouped deleted details
+    echo "deleted_details<<EOF" >> $GITHUB_OUTPUT
+    echo -e "$deleted_details" >> $GITHUB_OUTPUT
+    echo "EOF" >> $GITHUB_OUTPUT

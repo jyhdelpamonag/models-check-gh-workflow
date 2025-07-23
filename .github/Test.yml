@@ -1,68 +1,29 @@
-- name: Check modified models for deleted properties
-  id: deleted-properties
-  if: ${{ steps.modified-models.outputs.models != '' }}
-  env:
-    ALL_MODIFIED_MODELS: ${{ steps.modified-models.outputs.models }}
-  run: |
-    echo "Checking which modified models only contain deleted properties..."
+# TYPE-CHANGE
+if [ -n "$type_changed" ]; then
+  type_formatted_props=$(echo "$type_changed" | sed -E 's/(.*):(.*) -> (.*)/- \1 (\2 → \3)/')
 
-    deleted_details=""
-    while read -r file; do
-      echo "Processing $file"
+  while IFS= read -r line; do
+    original_type=$(echo "$line" | cut -d':' -f2 | cut -d' ' -f1)
+    new_type=$(echo "$line" | cut -d'>' -f2 | xargs)
 
-      # Get deleted property lines
-      deleted_props=$(git diff origin/development -- "$file" \
-        | grep '^\-' \
-        | grep -v '^\-\-\-' \
-        | grep -v '^\-\s*//' \
-        | grep -E '^\-\s*public\s+.*\{.*\}' || true)
+    # Remove trailing `?` to compare base types
+    base_old_type=$(echo "$original_type" | sed 's/\?$//')
+    base_new_type=$(echo "$new_type" | sed 's/\?$//')
 
-      echo "deleted props: $deleted_props"
+    if [ "$base_old_type" = "$base_new_type" ]; then
+      # Only nullable change
+      nullable_type_changed+="$line"$'\n'
+    else
+      # True data type change
+      data_type_changed+="$line"$'\n'
+    fi
+  done <<< "$type_changed"
 
-      # Get added property lines
-      added_props=$(git diff origin/development -- "$file" \
-        | grep '^\+' \
-        | grep -v '^\+\+\+' \
-        | grep -v '^\+\s*//' \
-        | grep -E '^\+\s*public\s+.*\{.*\}' || true)
+  if [ -n "$data_type_changed" ]; then
+    data_type_changed_output+="- $model_name"$'\n'"$type_formatted_props"$'\n'
+  fi
 
-      echo "added props: $added_props"
-
-      if [ -n "$deleted_props" ]; then
-        model_name=$(basename "$file" .cs)
-
-        # Helper: extract `name:type` from lines
-        extract_props() {
-          echo "$1" | sed -E 's/.*public\s+([^\s]+)\s+([^\s]+)\s*\{.*/\2:\1/'
-        }
-
-        deleted_extracted=$(extract_props "$deleted_props")
-        added_extracted=$(extract_props "$added_props")
-
-        true_deleted=""
-        while IFS= read -r deleted_line; do
-          deleted_name=$(echo "$deleted_line" | cut -d: -f1)
-          deleted_type=$(echo "$deleted_line" | cut -d: -f2)
-
-          renamed_match=$(echo "$added_extracted" | grep "^$deleted_name:" || true)
-          type_changed_match=$(echo "$added_extracted" | grep ":$deleted_type$" | grep -v "^$deleted_name:" || true)
-
-          if [ -z "$renamed_match" ] && [ -z "$type_changed_match" ]; then
-            true_deleted+="$deleted_line"$'\n'
-          fi
-        done <<< "$deleted_extracted"
-
-        if [ -n "$true_deleted" ]; then
-          formatted_props=$(echo "$true_deleted" | sed -E 's/(.*):([^:]+)/- \1 (\2)/')
-          deleted_details+="$model_name:\n$formatted_props\n"
-        fi
-      fi
-    done <<< "$ALL_MODIFIED_MODELS"
-
-    # Export grouped deleted details
-    echo "deleted_details<<EOF" >> $GITHUB_OUTPUT
-    echo "$deleted_details" >> $GITHUB_OUTPUT
-    echo "EOF" >> $GITHUB_OUTPUT
-
-    echo "Deleted Details:"
-    echo "$deleted_details"
+  if [ -n "$nullable_type_changed" ]; then
+    nullable_type_changed_output+="- $model_name"$'\n'"$nullable_type_changed"$'\n'
+  fi
+fi

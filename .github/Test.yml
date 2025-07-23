@@ -1,29 +1,35 @@
 # TYPE-CHANGE
 if [ -n "$type_changed" ]; then
-  type_formatted_props=$(echo "$type_changed" | sed -E 's/(.*):(.*) -> (.*)/- \1 (\2 → \3)/')
-
   while IFS= read -r line; do
-    original_type=$(echo "$line" | cut -d':' -f2 | cut -d' ' -f1)
+    prop_name=$(echo "$line" | cut -d':' -f1)
+    original_type=$(echo "$line" | cut -d':' -f2 | cut -d'>' -f1 | xargs)
     new_type=$(echo "$line" | cut -d'>' -f2 | xargs)
 
-    # Remove trailing `?` to compare base types
     base_old_type=$(echo "$original_type" | sed 's/\?$//')
     base_new_type=$(echo "$new_type" | sed 's/\?$//')
 
+    # Format like: - PropertyName (TypeA → TypeB)
+    formatted_line="- $prop_name ($original_type → $new_type)"
+
     if [ "$base_old_type" = "$base_new_type" ]; then
-      # Only nullable change
-      nullable_type_changed+="$line"$'\n'
+      if [[ "$original_type" != *"?" ]] && [[ "$new_type" == *"?" ]]; then
+        # long → long? → nullable addition (non-breaking)
+        nullable_type_changed_output+="$formatted_line"$'\n'
+      elif [[ "$original_type" == *"?" ]] && [[ "$new_type" != *"?" ]]; then
+        # long? → long → nullable removed (breaking)
+        data_type_changed_output+="$formatted_line"$'\n'
+      fi
     else
-      # True data type change
-      data_type_changed+="$line"$'\n'
+      # Entirely different type (breaking)
+      data_type_changed_output+="$formatted_line"$'\n'
     fi
   done <<< "$type_changed"
 
-  if [ -n "$data_type_changed" ]; then
-    data_type_changed_output+="- $model_name"$'\n'"$type_formatted_props"$'\n'
+  if [ -n "$data_type_changed_output" ]; then
+    data_type_changed_output="- $model_name"$'\n'"$data_type_changed_output"
   fi
 
-  if [ -n "$nullable_type_changed" ]; then
-    nullable_type_changed_output+="- $model_name"$'\n'"$nullable_type_changed"$'\n'
+  if [ -n "$nullable_type_changed_output" ]; then
+    nullable_type_changed_output="- $model_name"$'\n'"$nullable_type_changed_output"
   fi
 fi

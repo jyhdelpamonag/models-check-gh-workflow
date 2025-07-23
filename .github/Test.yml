@@ -1,40 +1,14 @@
-# TYPE-CHANGE
-if [ -n "$type_changed" ]; then
-  # Use your exact sed format to build formatted lines
-  type_formatted_props=$(echo "$type_changed" | sed -E 's/(.*):([^ ]+) -> ([^ ]+)/- \1 ( \2 → \3 )/')
+# raw_line: Code:string -> string?
 
-  # Reset output containers
-  formatted_data_type=""
-  formatted_nullable_type=""
+# Extract full original and new types
+original_type=$(echo "$raw_line" | sed -E 's/^[^:]+:([^ ]+) -> .*/\1/')
+new_type=$(echo "$raw_line" | sed -E 's/^.*-> ([^ ]+)/\1/')
 
-  # Iterate raw and formatted lines in sync
-  while IFS= read -r raw_line && IFS= read -r formatted_line <&3; do
-    prop_name=$(echo "$raw_line" | cut -d':' -f1)
-    original_type=$(echo "$raw_line" | cut -d':' -f2 | cut -d'>' -f1 | xargs)
-    new_type=$(echo "$raw_line" | cut -d'>' -f2 | xargs)
+# Strip nullable symbol for base type comparison
+base_old_type=$(echo "$original_type" | sed 's/\?$//')
+base_new_type=$(echo "$new_type" | sed 's/\?$//')
 
-    base_old_type=$(echo "$original_type" | sed 's/\?$//')
-    base_new_type=$(echo "$new_type" | sed 's/\?$//')
-
-    if [ "$base_old_type" = "$base_new_type" ]; then
-      if [[ "$original_type" != *"?" ]] && [[ "$new_type" == *"?" ]]; then
-        # long → long? → non-breaking
-        formatted_nullable_type+="$formatted_line"$'\n'
-      elif [[ "$original_type" == *"?" ]] && [[ "$new_type" != *"?" ]]; then
-        # long? → long → breaking
-        formatted_data_type+="$formatted_line"$'\n'
-      fi
-    else
-      # Fully different type → breaking
-      formatted_data_type+="$formatted_line"$'\n'
-    fi
-  done <<< "$type_changed" 3<<< "$type_formatted_props"
-
-  if [ -n "$formatted_data_type" ]; then
-    data_type_changed_output+="- $model_name"$'\n'"$formatted_data_type"
-  fi
-
-  if [ -n "$formatted_nullable_type" ]; then
-    nullable_type_changed_output+="- $model_name"$'\n'"$formatted_nullable_type"
-  fi
-fi
+echo "original_type: $original_type"
+echo "new_type: $new_type"
+echo "base_old_type: $base_old_type"
+echo "base_new_type: $base_new_type"

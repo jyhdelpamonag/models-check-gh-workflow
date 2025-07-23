@@ -1,0 +1,100 @@
+- name: Check modified models for deleted properties
+  id: deleted-properties
+  if: ${{ steps.modified-models.outputs.models != '' }}
+  env:
+    ALL_MODIFIED_MODELS: ${{ steps.modified-models.outputs.models }}
+    TYPE_CHANGED_MODELS: ${{ steps.type-changed-models.outputs.type_changed_models }}
+  run: |
+    echo "Checking which modified models only contain deleted properties..."
+
+    deleted_details=""
+    renamed_details=""
+
+    while read -r file; do
+      echo "Processing $file"
+      model_name=$(basename "$file" .cs)
+
+      # Skip if the model is already flagged for type changes
+      if echo ";$TYPE_CHANGED_MODELS;" | grep -q ";$model_name;"; then
+        echo "Skipping $model_name (already handled for type changes)"
+        continue
+      fi
+
+      # Get deleted properties
+      deleted_props=$(git diff origin/development -- "$file" \
+        | grep '^-' \
+        | grep -v '^---' \
+        | grep -v '^\s*$' \
+        | grep -v '^\s*//' \
+        | grep -E 'public\s+(required\s+)?[^;{]+{[^}]*}' || true)
+
+      echo "deleted_props: $deleted_props"
+
+      # Get added properties
+      added_props=$(git diff origin/development -- "$file" \
+        | grep '^+' \
+        | grep -v '^\+\+\+' \
+        | grep -v '^\s*$' \
+        | grep -v '^\s*//' \
+        | grep -E 'public\s+(required\s+)?[^;{]+{[^}]*}' || true)
+
+      echo "added_props: $added_props"
+
+      # Build deleted and added property pairs: type:name
+      deleted_pairs=$(echo "$deleted_props" | sed -E 's/^-\s*//' \
+        | sed -E 's/.*public\s+(required\s+)?([^\s]+)\s+([^\s]+).*/\2:\3/')
+
+      added_pairs=$(echo "$added_props" | sed -E 's/^\+\s*//' \
+        | sed -E 's/.*public\s+(required\s+)?([^\s]+)\s+([^\s]+).*/\2:\3/')
+
+      true_deleted_props=""
+      renamed_block=""
+
+      for del in $deleted_pairs; do
+        del_type="${del%%:*}"
+        del_name="${del##*:}"
+        matched=false
+        for add in $added_pairs; do
+          add_type="${add%%:*}"
+          add_name="${add##*:}"
+          if [[ "$del_type" == "$add_type" && "$del_name" != "$add_name" ]]; then
+            renamed_block+="- $model_name: $del_name → $add_name ($del_type)\n"
+            matched=true
+            break
+          fi
+        done
+        if [[ "$matched" == false ]]; then
+          raw_line=$(echo "$deleted_props" | grep -E "public\s+(required\s+)?$del_type\s+$del_name\b")
+          true_deleted_props+="$raw_line"$'\n'
+        fi
+      done
+
+      # Format remaining true deleted properties
+      if [ -n "$true_deleted_props" ]; then
+        formatted_props=$(echo "$true_deleted_props" | sed -E 's/^-\s*//' \
+          | sed -E 's/.*public\s+(required\s+)?([^\s]+)\s+([^\s]+).*/  - \3 (\2)/')
+        deleted_details+="- $model_name\n$formatted_props\n\n"
+      fi
+
+      # Append renamed block
+      if [ -n "$renamed_block" ]; then
+        renamed_details+="$renamed_block\n"
+      fi
+    done <<< "$ALL_MODIFIED_MODELS"
+
+    # Export deleted props
+    echo "deleted_details<<EOF" >> $GITHUB_OUTPUT
+    echo -e "$deleted_details" >> $GITHUB_OUTPUT
+    echo "EOF" >> $GITHUB_OUTPUT
+
+    # Export renamed props
+    echo "renamed_properties<<EOF" >> $GITHUB_OUTPUT
+    echo -e "$renamed_details" >> $GITHUB_OUTPUT
+    echo "EOF" >> $GITHUB_OUTPUT
+
+    # Optional debug
+    echo "Deleted Details:"
+    echo "$deleted_details"
+
+    echo "Renamed Properties:"
+    echo "$renamed_details"

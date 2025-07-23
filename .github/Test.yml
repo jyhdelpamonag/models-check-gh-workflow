@@ -1,35 +1,40 @@
 # TYPE-CHANGE
 if [ -n "$type_changed" ]; then
-  while IFS= read -r line; do
-    prop_name=$(echo "$line" | cut -d':' -f1)
-    original_type=$(echo "$line" | cut -d':' -f2 | cut -d'>' -f1 | xargs)
-    new_type=$(echo "$line" | cut -d'>' -f2 | xargs)
+  # Use your exact sed format to build formatted lines
+  type_formatted_props=$(echo "$type_changed" | sed -E 's/(.*):([^ ]+) -> ([^ ]+)/- \1 ( \2 → \3 )/')
+
+  # Reset output containers
+  formatted_data_type=""
+  formatted_nullable_type=""
+
+  # Iterate raw and formatted lines in sync
+  while IFS= read -r raw_line && IFS= read -r formatted_line <&3; do
+    prop_name=$(echo "$raw_line" | cut -d':' -f1)
+    original_type=$(echo "$raw_line" | cut -d':' -f2 | cut -d'>' -f1 | xargs)
+    new_type=$(echo "$raw_line" | cut -d'>' -f2 | xargs)
 
     base_old_type=$(echo "$original_type" | sed 's/\?$//')
     base_new_type=$(echo "$new_type" | sed 's/\?$//')
 
-    # Format like: - PropertyName (TypeA → TypeB)
-    formatted_line="- $prop_name ($original_type → $new_type)"
-
     if [ "$base_old_type" = "$base_new_type" ]; then
       if [[ "$original_type" != *"?" ]] && [[ "$new_type" == *"?" ]]; then
-        # long → long? → nullable addition (non-breaking)
-        nullable_type_changed_output+="$formatted_line"$'\n'
+        # long → long? → non-breaking
+        formatted_nullable_type+="$formatted_line"$'\n'
       elif [[ "$original_type" == *"?" ]] && [[ "$new_type" != *"?" ]]; then
-        # long? → long → nullable removed (breaking)
-        data_type_changed_output+="$formatted_line"$'\n'
+        # long? → long → breaking
+        formatted_data_type+="$formatted_line"$'\n'
       fi
     else
-      # Entirely different type (breaking)
-      data_type_changed_output+="$formatted_line"$'\n'
+      # Fully different type → breaking
+      formatted_data_type+="$formatted_line"$'\n'
     fi
-  done <<< "$type_changed"
+  done <<< "$type_changed" 3<<< "$type_formatted_props"
 
-  if [ -n "$data_type_changed_output" ]; then
-    data_type_changed_output="- $model_name"$'\n'"$data_type_changed_output"
+  if [ -n "$formatted_data_type" ]; then
+    data_type_changed_output+="- $model_name"$'\n'"$formatted_data_type"
   fi
 
-  if [ -n "$nullable_type_changed_output" ]; then
-    nullable_type_changed_output="- $model_name"$'\n'"$nullable_type_changed_output"
+  if [ -n "$formatted_nullable_type" ]; then
+    nullable_type_changed_output+="- $model_name"$'\n'"$formatted_nullable_type"
   fi
 fi

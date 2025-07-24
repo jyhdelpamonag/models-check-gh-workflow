@@ -1,14 +1,38 @@
-# raw_line: Code:string -> string?
+true_added=""
+breaking_added_props=""
 
-# Extract full original and new types
-original_type=$(echo "$raw_line" | sed -E 's/^[^:]+:([^ ]+) -> .*/\1/')
-new_type=$(echo "$raw_line" | sed -E 's/^.*-> ([^ ]+)/\1/')
+# Read added_extracted and map to raw lines
+while IFS= read -r added_line; do
+  # Extract property name for matching (e.g., Code from Code:long)
+  prop_name=$(echo "$added_line" | cut -d: -f1)
 
-# Strip nullable symbol for base type comparison
-base_old_type=$(echo "$original_type" | sed 's/\?$//')
-base_new_type=$(echo "$new_type" | sed 's/\?$//')
+  # Find matching raw added line from added_props
+  raw_line=$(echo "$added_props" | grep -E "public.*\b$prop_name\b" | head -n1)
 
-echo "original_type: $original_type"
-echo "new_type: $new_type"
-echo "base_old_type: $base_old_type"
-echo "base_new_type: $base_new_type"
+  # Check if it's required
+  if echo "$raw_line" | grep -q '\brequired\b'; then
+    # If required, check for default assignment
+    if echo "$raw_line" | grep -q '='; then
+      # Has default → safe
+      true_added+="$added_line"$'\n'
+    else
+      # Required with no default → breaking
+      breaking_added_props+="$added_line"$'\n'
+    fi
+  else
+    # Not required → safe
+    true_added+="$added_line"$'\n'
+  fi
+done <<< "$added_extracted"
+
+# Format and print
+formatted_added_props=$(echo "$true_added" | sed -E 's/(.*):([^:]+)$/- \1 (\2)/')
+added_details+="- $model_name"$'\n'"$formatted_added_props"$'\n'
+
+echo "✅ Added Properties (ONLY):"
+echo "$added_details"
+
+if [ -n "$breaking_added_props" ]; then
+  echo "⚠️ Breaking Added Properties (Missing Default):"
+  echo "$breaking_added_props"
+fi

@@ -1,38 +1,39 @@
-true_added=""
-breaking_added_props=""
+- name: Get deployment approval info
+  id: get_approval_info
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    REPO: ${{ github.repository }}
+  run: |
+    owner=$(echo "$REPO" | cut -d/ -f1)
+    repo=$(echo "$REPO" | cut -d/ -f2)
 
-# Read added_extracted and map to raw lines
-while IFS= read -r added_line; do
-  # Extract property name for matching (e.g., Code from Code:long)
-  prop_name=$(echo "$added_line" | cut -d: -f1)
+    deployment_id=${{ steps.get_deployment.outputs.deployment_id }}
 
-  # Find matching raw added line from added_props
-  raw_line=$(echo "$added_props" | grep -E "public.*\b$prop_name\b" | head -n1)
+    echo "Fetching statuses for deployment ID $deployment_id..."
 
-  # Check if it's required
-  if echo "$raw_line" | grep -q '\brequired\b'; then
-    # If required, check for default assignment
-    if echo "$raw_line" | grep -q '='; then
-      # Has default → safe
-      true_added+="$added_line"$'\n'
-    else
-      # Required with no default → breaking
-      breaking_added_props+="$added_line"$'\n'
+    statuses_json=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+      "https://api.github.com/repos/$owner/$repo/deployments/$deployment_id/statuses")
+
+    # Get the latest deployment status object
+    latest_status=$(echo "$statuses_json" | jq '.[0]')
+
+    state=$(echo "$latest_status" | jq -r '.state')
+    approver_login=$(echo "$latest_status" | jq -r '.creator.login')
+
+    echo "Approval state: $state"
+    echo "Approver username: $approver_login"
+
+    # Fetch full name of approver
+    full_name=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+      "https://api.github.com/users/$approver_login" | jq -r '.name')
+
+    # Fallback to login if full name is null or empty
+    if [ -z "$full_name" ] || [ "$full_name" == "null" ]; then
+      full_name="$approver_login"
     fi
-  else
-    # Not required → safe
-    true_added+="$added_line"$'\n'
-  fi
-done <<< "$added_extracted"
 
-# Format and print
-formatted_added_props=$(echo "$true_added" | sed -E 's/(.*):([^:]+)$/- \1 (\2)/')
-added_details+="- $model_name"$'\n'"$formatted_added_props"$'\n'
+    echo "Approver full name: $full_name"
 
-echo "✅ Added Properties (ONLY):"
-echo "$added_details"
-
-if [ -n "$breaking_added_props" ]; then
-  echo "⚠️ Breaking Added Properties (Missing Default):"
-  echo "$breaking_added_props"
-fi
+    echo "approval_state=$state" >> $GITHUB_OUTPUT
+    echo "approval_user=$approver_login" >> $GITHUB_OUTPUT
+    echo "approval_user_fullname=$full_name" >> $GITHUB_OUTPUT

@@ -338,6 +338,38 @@ jobs:
               core.warning('changelog.md not found, skipping PR comment.');
             }
 
+      - name: Upload changelog as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: changelog
+          path: ./docs/changelog.md
+
+  commit-md:
+    needs: generate-changelog-no-breaking-changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: main # or your base branch name
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download changelog artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: changelog
+          path: ./docs # put it in the desired folder path
+
+      - name: Commit and push changelog
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add docs/changelog.md
+          git commit -m "Add changelog"
+          git push origin HEAD:main
+
+          
 
   generate-changelog-with-potential-breaking-changes:
     needs: [detect-breaking-changes, potential-breaking-changes-found-bypass-approval]

@@ -236,9 +236,62 @@ jobs:
     if: ${{ github.event_name != 'workflow_dispatch' && needs.detect-breaking-changes.outputs.breaking_changes_found == 'true' }}
     environment:
       name: dev
+    outputs:
+      approval_user: ${{ steps.get_approval_info.outputs.approval_user }}
+      approval_user_fullname: ${{ steps.get_approval_info.outputs.approval_user_fullname }}
     steps:
       - name: Breaking changes found in the models. Please review the changes before continuing.
         run: echo "Manual approval received, continuing workflow."
+
+      - name: Get latest deployment ID
+        id: get_deployment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          owner=$(echo "$REPO" | cut -d/ -f1)
+          repo=$(echo "$REPO" | cut -d/ -f2)
+
+          deployments_json=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$owner/$repo/deployments?environment=dev")
+
+          deployment_id=$(echo "$deployments_json" | jq '.[0].id')
+
+          if [ "$deployment_id" == "null" ] || [ -z "$deployment_id" ]; then
+            echo "No deployment found for environment 'dev'."
+            exit 1
+          fi
+
+          echo "deployment_id=$deployment_id" >> $GITHUB_OUTPUT
+
+      - name: Get deployment approval info
+        id: get_approval_info
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          deployment_id=${{ steps.get_deployment.outputs.deployment_id }}
+          owner=$(echo "$REPO" | cut -d/ -f1)
+          repo=$(echo "$REPO" | cut -d/ -f2)
+
+          statuses_json=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$owner/$repo/deployments/$deployment_id/statuses")
+
+          latest_status=$(echo "$statuses_json" | jq '.[0]')
+          state=$(echo "$latest_status" | jq -r '.state')
+          approver_login=$(echo "$latest_status" | jq -r '.creator.login')
+
+          full_name=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/users/$approver_login" | jq -r '.name')
+
+          if [ -z "$full_name" ] || [ "$full_name" == "null" ]; then
+            full_name="$approver_login"
+          fi
+
+          echo "approval_state=$state" >> $GITHUB_OUTPUT
+          echo "approval_user=$approver_login" >> $GITHUB_OUTPUT
+          echo "approval_user_fullname=$full_name" >> $GITHUB_OUTPUT
+
 
   generate-changelog-no-breaking-changes:
     needs: detect-breaking-changes
@@ -430,6 +483,10 @@ jobs:
           echo "" >> changelog.md
           echo "### ✅ Approved By:" >> changelog.md
           echo "- ${{ github.actor }}" >> changelog.md
+
+          echo "" >> changelog.md
+          echo "### ✅ Deployment Approved By:" >> changelog.md
+          echo "- ${{ needs.potential-breaking-changes-found-bypass-approval.outputs.approval_user_fullname }}" >> changelog.md
 
       - name: Post changelog as PR comment
         uses: actions/github-script@v6

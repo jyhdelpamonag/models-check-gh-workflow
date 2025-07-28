@@ -16,8 +16,12 @@
 - City
   - State
 - Account
+  - Username
   - Password
   - PhoneNumber
 
 ### ✅ Approved By:
 - jyhdelpamonag
+
+### ✅ Deployment Approved By:
+- Jyhdel Pamonag

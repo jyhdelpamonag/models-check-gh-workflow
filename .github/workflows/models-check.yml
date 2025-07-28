@@ -240,6 +240,7 @@ jobs:
       approval_user: ${{ steps.get_approval_info.outputs.approval_user }}
       approval_user_fullname: ${{ steps.get_approval_info.outputs.approval_user_fullname }}
       approval_state: ${{ steps.get_approval_info.outputs.approval_state }}
+      approval_date: ${{ steps.get_approval_info.outputs.approval_date }}
     steps:
       - name: Breaking changes found in the models. Please review the changes before continuing.
         run: echo "Manual approval received, continuing workflow."
@@ -281,6 +282,7 @@ jobs:
           latest_status=$(echo "$statuses_json" | jq '.[0]')
           state=$(echo "$latest_status" | jq -r '.state')
           approver_login=$(echo "$latest_status" | jq -r '.creator.login')
+          approval_date=$(echo "$latest_status" | jq -r '.created_at')
 
           full_name=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
             "https://api.github.com/users/$approver_login" | jq -r '.name')
@@ -292,7 +294,7 @@ jobs:
           echo "approval_state=$state" >> $GITHUB_OUTPUT
           echo "approval_user=$approver_login" >> $GITHUB_OUTPUT
           echo "approval_user_fullname=$full_name" >> $GITHUB_OUTPUT
-
+          echo "approval_date=$approval_date" >> $GITHUB_OUTPUT
 
   generate-changelog-no-breaking-changes:
     needs: detect-breaking-changes
@@ -397,6 +399,28 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ needs.potential-breaking-changes-found-bypass-approval.result == 'success' }}
     steps:
+      - name: Post PR comment confirming approval of breaking change
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              core.warning("Not running in a pull request context. Skipping comment.");
+              return;
+            }
+
+            const approver = `${{ needs.potential-breaking-changes-found-bypass-approval.outputs.approval_user_fullname }}`;
+            const date = `${{ needs.potential-breaking-changes-found-bypass-approval.outputs.approval_date }}`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body: `✅ **Breaking Change Approved**\n\n` +
+                    `This breaking change was approved by **${approver}** on **${date}**.\n\n`
+            });
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -548,3 +572,23 @@ jobs:
             git add docs/changelog.md
             git commit -m "Add changelog"
             git push origin HEAD:${{ github.head_ref }}
+
+        - name: Post follow-up PR comment about changelog commit
+          uses: actions/github-script@v6
+          with:
+            github-token: ${{ secrets.GITHUB_TOKEN }}
+            script: |
+              const pr = context.payload.pull_request;
+
+              if (!pr) {
+                core.warning("Not running in a pull request context. Skipping comment.");
+                return;
+              }
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: `📝 **Changelog has been committed.**\n\nPlease update the **Notes** section of this PR to provide more context about the breaking changes, reasoning, or migration guidance.`
+              });
+

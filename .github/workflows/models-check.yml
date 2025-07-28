@@ -239,6 +239,7 @@ jobs:
     outputs:
       approval_user: ${{ steps.get_approval_info.outputs.approval_user }}
       approval_user_fullname: ${{ steps.get_approval_info.outputs.approval_user_fullname }}
+      approval_state: ${{ steps.get_approval_info.outputs.approval_state }}
     steps:
       - name: Breaking changes found in the models. Please review the changes before continuing.
         run: echo "Manual approval received, continuing workflow."
@@ -406,6 +407,7 @@ jobs:
           BREAKING_CHANGES_LIST: ${{ needs.detect-breaking-changes.outputs.breaking_changes_list }}
           ADDED_MODELS: ${{ needs.detect-breaking-changes.outputs.added_models }}
           ADDED_PROPERTIES_LIST: ${{ needs.detect-breaking-changes.outputs.added_properties_list }}
+          APPROVAL_STATE: ${{ needs.potential-breaking-changes-found-bypass-approval.outputs.approval_state }}
         run: |
           added_models_count=$(echo "$ADDED_MODELS" | grep -cve '^\s*$' || echo 0)
           modified_models_count=0
@@ -486,7 +488,9 @@ jobs:
 
           echo "" >> changelog.md
           echo "### ✅ Deployment Approved By:" >> changelog.md
-          echo "- ${{ needs.potential-breaking-changes-found-bypass-approval.outputs.approval_user_fullname }}" >> changelog.md
+          echo "- Name: ${{ needs.potential-breaking-changes-found-bypass-approval.outputs.approval_user_fullname }}" >> changelog.md
+          echo "- Status: ${{ needs.potential-breaking-changes-found-bypass-approval.outputs.approval_state }}" >> changelog.md
+
 
       - name: Post changelog as PR comment
         uses: actions/github-script@v6

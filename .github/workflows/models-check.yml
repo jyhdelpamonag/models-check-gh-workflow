@@ -487,4 +487,4 @@ jobs:
 
             git add docs/changelog.md
             git commit -m "Add changelog"
-            git push origin HEAD:main
+            git push origin HEAD

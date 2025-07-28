@@ -4,7 +4,7 @@
 - Models Added: 0
 0
 - Models Modified (Added Properties): 0
-- Models with Breaking Changes: 2
+- Models with Breaking Changes: 3
 
 ### ➕ Added Models with Properties:
 - None
@@ -15,6 +15,8 @@
 ### ⚠️ Breaking Changes Detected:
 - City
   - State
+- Person
+  - Email
 - Account
   - Username
   - Password

@@ -282,7 +282,7 @@ jobs:
           latest_status=$(echo "$statuses_json" | jq '.[0]')
           state=$(echo "$latest_status" | jq -r '.state')
           approver_login=$(echo "$latest_status" | jq -r '.creator.login')
-          approval_date=$(echo "$latest_status" | jq -r '.created_at')
+          approval_date=$(echo "$latest_status" | jq -r '.created_at' | cut -d'T' -f1)
 
           full_name=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
             "https://api.github.com/users/$approver_login" | jq -r '.name')

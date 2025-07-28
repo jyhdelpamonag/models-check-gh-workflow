@@ -468,11 +468,10 @@ jobs:
       needs: generate-changelog-with-potential-breaking-changes
       runs-on: ubuntu-latest
       steps:
-        - name: Checkout base branch
+        - name: Checkout code
           uses: actions/checkout@v4
           with:
-            ref: main # or your base branch name
-            token: ${{ secrets.GITHUB_TOKEN }}
+            fetch-depth: 0
 
         - name: Download changelog artifact
           uses: actions/download-artifact@v4

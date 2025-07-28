@@ -19,6 +19,7 @@
   - Username
   - Password
   - IsActive
+  - Email
   - PhoneNumber
 
 ### ✅ Approved By:

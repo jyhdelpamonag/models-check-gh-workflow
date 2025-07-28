@@ -18,10 +18,12 @@
 - Account
   - Username
   - Password
+  - IsActive
   - PhoneNumber
 
 ### ✅ Approved By:
 - jyhdelpamonag
 
 ### ✅ Deployment Approved By:
-- Jyhdel Pamonag
+- Name: Jyhdel Pamonag
+- Status: in_progress

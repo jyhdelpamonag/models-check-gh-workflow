@@ -62,6 +62,7 @@ jobs:
 
   detect-breaking-changes:
     needs: gate-latest-push
+    if: ${{ needs.gate-latest-push.outputs.models_changed == 'true' }}
     runs-on: ubuntu-latest
     outputs:
       breaking_changes_found: ${{ steps.detect.outputs.breaking_changes_found }}

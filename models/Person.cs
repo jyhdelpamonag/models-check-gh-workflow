@@ -6,4 +6,5 @@ public class Person {
     public string PhoneNumber { get; set; }
     public string? Address { get; set; }
     public DateTime? LastUpdated { get; set; }
+    public string? AltName { get; set; }
 }

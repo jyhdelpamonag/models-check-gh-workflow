@@ -3,4 +3,5 @@ public class State {
     public string Name { get; set; }
     public string Code { get; set; }
     public string Country { get; set; }
+    public DateTime? LastUpdated { get; set; }
 }

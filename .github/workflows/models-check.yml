@@ -20,33 +20,44 @@ jobs:
   gate-latest-push:
     runs-on: ubuntu-latest
     outputs:
-      models_changed: ${{ steps.check.outputs.models_changed }}
+      models_changed: ${{ steps.gate.outputs.models_changed }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - id: check
-        name: Check if latest push touched models/**
+      - id: gate
+        name: Check if the latest push touched models/**
+        shell: bash
         run: |
-          BEFORE="${{ github.event.before }}"
-          AFTER="${{ github.sha }}"
+          echo "Checking if the latest push touched models/**"
 
-          # If the event is "opened" there may be no "before" (all zeros). Fall back to PR base.
-          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || [ -z "$BEFORE" ]; then
-            BEFORE="${{ github.event.pull_request.base.sha }}"
+          ACTION="${{ github.event.action }}"
+          HEAD="${{ github.sha }}"
+
+          # For opened/reopened: compare PR base -> current head (entire PR content)
+          # For synchronize: compare previous remote head -> current head (only the latest push)
+          if [ "$ACTION" = "opened" ] || [ "$ACTION" = "reopened" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+            # Fallback if GitHub provided a null/empty before for some edge cases
+            if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+              BASE="${{ github.event.pull_request.base.sha }}"
+            fi
           fi
 
-          echo "Diff range: $BEFORE..$AFTER"
-          changed=$(git diff --name-only "$BEFORE" "$AFTER" -- models || true)
+          echo "Comparing range: $BASE..$HEAD"
+          changed="$(git diff --name-only "$BASE" "$HEAD" -- models || true)"
 
           if [ -n "$changed" ]; then
             echo "models_changed=true"  >> "$GITHUB_OUTPUT"
-            echo "Changed files under models/:"
-            echo "$changed"
+            echo "Files under models/ changed in this event:"
+            printf '%s\n' "$changed"
           else
             echo "models_changed=false" >> "$GITHUB_OUTPUT"
-            echo "No changes under models/ in the latest push."
+            echo "No changes under models/ in this event."
+            exit 1
           fi
 
   detect-breaking-changes:

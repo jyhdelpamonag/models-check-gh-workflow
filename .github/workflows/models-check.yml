@@ -7,7 +7,7 @@ concurrency:
 on: 
   workflow_dispatch:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize]
     paths:
       - 'models/**'
 
@@ -17,7 +17,40 @@ permissions:
 
 
 jobs:
+  gate-latest-push:
+    runs-on: ubuntu-latest
+    outputs:
+      models_changed: ${{ steps.check.outputs.models_changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: check
+        name: Check if latest push touched models/**
+        run: |
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+
+          # If the event is "opened" there may be no "before" (all zeros). Fall back to PR base.
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || [ -z "$BEFORE" ]; then
+            BEFORE="${{ github.event.pull_request.base.sha }}"
+          fi
+
+          echo "Diff range: $BEFORE..$AFTER"
+          changed=$(git diff --name-only "$BEFORE" "$AFTER" -- models || true)
+
+          if [ -n "$changed" ]; then
+            echo "models_changed=true"  >> "$GITHUB_OUTPUT"
+            echo "Changed files under models/:"
+            echo "$changed"
+          else
+            echo "models_changed=false" >> "$GITHUB_OUTPUT"
+            echo "No changes under models/ in the latest push."
+          fi
+
   detect-breaking-changes:
+    needs: gate-latest-push
     runs-on: ubuntu-latest
     outputs:
       breaking_changes_found: ${{ steps.detect.outputs.breaking_changes_found }}
